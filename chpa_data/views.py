@@ -21,287 +21,81 @@ from django.views.decorators.cache import cache_page
 from django.contrib.auth.decorators import login_required
 ENGINE = create_engine('mysql+pymysql://root:lwydecd+20@localhost:3306/test') #创建数据库连接引擎
 # 根据用户传进来的数据创建的表
-DB_TABLE=''
-
-@login_required
-@cache_page(60 * 60 * 24 * 30)
-def search(request, column, kw):
-    sql = "SELECT DISTINCT  %s FROM %s WHERE %s like '%%%s%%'" % (column, DB_TABLE, column, kw) # 最简单的单一字符串like，返回不重复的前10个结果
-    try:
-        df = pd.read_sql_query(sa.text(sql), ENGINE)
-        #flatten是numpy.ndarray.flatten的一个函数，即返回一个折叠成一维的数组。
-        # 但是该函数只能适用于numpy对象，即array或者mat，普通的list列表是不行的。
-        l = df.values.flatten().tolist()
-        results_list = []
-        for element in l:
-            option_dict = {'name': element,
-                           'value': element,
-                           }
-            results_list.append(option_dict)
-        res = {
-            "success": True,
-            "results": results_list,
-            "code": 200,
-        }
-    except Exception as e:
-        res = {
-            "success": False,
-            "errMsg": e,
-            "code": 0,
-        }
-    return HttpResponse(json.dumps(res, ensure_ascii=False), content_type="application/json charset=utf-8") # 返回结果必须是json格式
-def index01(request):
-    sql = sqlparse01('MAT', 'Value', " `TC III` = 'C09C ANGIOTENS-II ANTAG, PLAIN|血管紧张素II拮抗剂，单一用药'") #读取ARB市场的滚动年销售额数据
-    df = pd.read_sql_query(sql, ENGINE)  # 将sql语句结果读取至Pandas Dataframe
-
-    pivoted = pd.pivot_table(df,
-                             values='AMOUNT',  # 数据透视汇总值为AMOUNT字段，一般保持不变
-                             index='DATE',  # 数据透视行为DATE字段，一般保持不变
-                             columns='MOLECULE',  # 数据透视列为MOLECULE字段，该字段以后应跟随分析需要动态传参
-                             aggfunc=np.sum) # 数据透视汇总方式为求和，一般保持不变
-    if pivoted.empty is False:
-        pivoted.sort_values(by=pivoted.index[-1], axis=1, ascending=False, inplace=True) #结果按照最后一个DATE表现排序
-
-    # KPI
-    kpi = get_kpi(pivoted)
-
-    mselect_dict = {}
-    for key, value in D_MULTI_SELECT.items():
-        mselect_dict[key] = {}
-        mselect_dict[key]['select'] = value
-        option_list=get_distinct_list(value,DB_TABLE)
-        mselect_dict[key]['options'] = option_list  #以后可以后端通过列表为每个多选控件传递备选项
-
-    context = {
-        "market_size": kpi["market_size"],
-        "market_gr": kpi["market_gr"],
-        "market_cagr": kpi["market_cagr"],
-        'ptable': ptable(pivoted).to_html(),
-        'mselect_dict': mselect_dict
-    }
-    return render(request, 'chpa_data/display.html', context)
+DB_TABLE='example'
 @login_required
 # 此函数初始化界面，然后用户点击导入按钮后自动生成可选条件，让用户选择
 def index(request):
-    if request.method == 'GET':
-        return render(request, 'chpa_data/display.html')
-    elif request.method == 'POST':
-        content =request.FILES.get("upload", None)
-        if not content:
-            return render(request,  'chpa_data/display.html', {'message': '没有上传内容'})
-        position = os.path.join('./upload',content.name)
-        #获取上传文件的文件名，并将其存储到指定位置
-        storage = open(position,'wb+')       #打开存储文件
-        for chunk in content.chunks():       #分块写入文件
-            storage.write(chunk)
-        storage.close()
-        file_path = position
-        tablename = '`'+os.path.split(file_path)[-1].split('.')[0] + '`'
-        global DB_TABLE
-        DB_TABLE = '`'+os.path.split(file_path)[-1].split('.')[0] + '`'
-        hostname = '127.0.0.1'
-        port = 3306
-        user = 'root'
-        passwd = 'lwydecd+20'
-        db = 'test'
-        M = CsvToMysql(hostname=hostname, port=port, user=user, passwd=passwd, db=db)
-        M.read_csv(file_path)
-
-        sql='select column_name,data_type from information_schema.columns where table_name={} '.format(DB_TABLE.replace('`',"'"))
-        df=pd.read_sql_query(sql,ENGINE)
-        # print(df.loc[0])
-        # print(df.iloc[:,0].size)#行数
-        # 筛选条件字典
-        print("啊的梅兰芳马上离开对方路上看到那个路口")
-        print(df)
-        D_screen_condition=dict(zip(df['COLUMN_NAME'],'`'+df['COLUMN_NAME']+'`'))
-        #传给前端value选择的备选值,因为value只能选择数值类型的数据,选择字符数据没有意义
-        df2=df[df['DATA_TYPE'].isin(['int','float'])]
-        D_screen_condition2VALUE=dict(zip(df2['COLUMN_NAME'],'`'+df2['COLUMN_NAME']+'`'))
-        print(D_screen_condition)
-        print(D_screen_condition2VALUE)
-        # 下面的代码负责初始化表单选项(index和column)
-        mselect_dict = {}
-        for key, value in D_screen_condition.items():
-            #D_MULTI_SELECT
-            #mselect_dict的key为D_screen_condition的key
-            # mselect_dict的value为字典，具有select和options两个字段
-            mselect_dict[key] = {}
-
-            # value的select字段表示选择了数据库中的哪个属性
-            mselect_dict[key]['select'] = value
-
-            # value的options字段表示数据库中该属性具有的各不相同的取值
-            option_list=get_distinct_list(value,DB_TABLE)
-            mselect_dict[key]['options'] = option_list  #以后可以后端通过列表为每个多选控件传递备选项
-            # 下面单独初始化value备选框
-        mselect_dict_value={}
-        for key, value in D_screen_condition2VALUE.items():
-            #D_MULTI_SELECT
-            #mselect_dict的key为D_screen_condition的key
-            # mselect_dict的value为字典，具有select和options两个字段
-            mselect_dict_value[key] = {}
-
-            # value的select字段表示选择了数据库中的哪个属性
-            mselect_dict_value[key]['select'] = value
-
-            # value的options字段表示数据库中该属性具有的各不相同的取值
-            option_list=get_distinct_list(value,DB_TABLE)
-            mselect_dict_value[key]['options'] = option_list  #以后可以后端通过列表为每个多选控件传递备选项
-        context = {
-            # 'mselect_dict_value': mselect_dict_value,
-            'mselect_dict':mselect_dict,
-            'mselect_dict_value':mselect_dict_value,
-            'message': '上传成功'
-        }
-        return render(request,  'chpa_data/display.html',context)      #返回客户端信息
-    else:
-        return HttpResponseRedirect("不支持的请求方法")
-# 该函数去除字符串两边的``符号
-def delesig(str):
-    if str[0] == '`':
-        # 去除字符串两边的``符号
-        str1 = str[1:][:-1]
-    else:
-        str1=str
-    return str1
-
-
+    mselect_dict = {}
+    for key, value in D_MULTI_SELECT.items():
+        #mselect_dict的key为D_MULTI_SELECT的key
+        # mselect_dict的value为字典，具有select和options两个字段
+        mselect_dict[key] = {}
+        # value的select字段表示选择了数据库中的哪个属性
+        mselect_dict[key]['select'] = value
+        # value的options字段表示数据库中该属性具有的各不相同的取值
+        option_list=get_distinct_list(value,DB_TABLE)
+        mselect_dict[key]['options'] = option_list  #以后可以后端通过列表为每个多选控件传递备选项
+    context = {
+        'mselect_dict': mselect_dict
+    }
+    return render(request, 'chpa_data/display.html', context)
 # 此函数根据form_dict数据做对应的处理（处理为原数据或者透视数据表）
 def get_df(form_dict, is_pivoted=True):
     sql = sqlparse(form_dict)  # sql拼接
-    print("mmmmmmmmmmmmmmmmmmmmmmmmmmmmm")
-    print(sql)
     df = pd.read_sql_query(sa.text(sql), ENGINE)  # 将sql语句结果读取至Pandas Dataframe
-    column_selected = form_dict['COLUMN_select'][0]
-    column=delesig(column_selected)
-    #分类统计表
-    valuetable=pd.concat([pd.Series(df[column].value_counts().index),pd.Series(df[column].value_counts().values)],axis=1)
-    valuetable.columns=[column,'个数']
-    destable=df.describe()
-    if is_pivoted is True:
-        index_selected = form_dict['INDEX_select'][0]
-        value_selected = form_dict['VALUE_select'][0]
-        agg_selected = form_dict['AGG_select'][0]
-        index=delesig(index_selected)
-        value=delesig(value_selected)
-        if agg_selected =='mysum':
-            pivoted = pd.pivot_table(df,values=value,index=index,columns=column,aggfunc=np.sum)
-        elif agg_selected=='myavg':
-            pivoted = pd.pivot_table(df,values=value,index=index,columns=column,aggfunc=np.mean)
-        elif agg_selected=='mymax':
-            pivoted = pd.pivot_table(df,values=value,index=index,columns=column,aggfunc=np.max)
-        elif agg_selected=='mymin':
-            pivoted = pd.pivot_table(df,values=value,index=index,columns=column,aggfunc=np.min)
-        elif agg_selected=='mybzc':
-            pivoted = pd.pivot_table(df,values=value,index=index,columns=column,aggfunc=np.std)
-        elif agg_selected=='myfc':
-            pivoted = pd.pivot_table(df,values=value,index=index,columns=column,aggfunc=np.var)
-        elif agg_selected=='mymid':
-            pivoted = pd.pivot_table(df,values=value,index=index,columns=column,aggfunc=np.median)
 
-        # 自定义透视表的话需要index,value,column
-        # value一般是数据,所以在这里进行判断,他的选项里只能有数字类型的字段
-        # 而索引和column则用户自由选择,我们不负责透视出来是个什么样式
-        #而且三个的取值不能重复,所以这里还需要做判断,当某一个字段被选择了之后,其他的维度就不会显示这个字段了
-        # pivoted = pd.pivot_table(df,
-        #                          values=value,  # 数据透视汇总值为AMOUNT字段，一般保持不变
-        #                          index=index,  # 数据透视行为DATE字段，一般保持不变
-        #                          columns=column,  # 数据透视列为前端选择的分析维度
-        #                          aggfunc=np.median)  # 数据透视汇总方式为求和，一般保持不变
+    if is_pivoted is True:
+        dimension_selected = form_dict['DIMENSION_select'][0]
+        if dimension_selected[0] == '`':
+            column = dimension_selected[1:][:-1]
+        else:
+            column = dimension_selected
+
+        pivoted = pd.pivot_table(df,
+                                 values='AMOUNT',  # 数据透视汇总值为AMOUNT字段，一般保持不变
+                                 index='DATE',  # 数据透视行为DATE字段，一般保持不变
+                                 columns=column,  # 数据透视列为前端选择的分析维度
+                                 aggfunc=np.sum)  # 数据透视汇总方式为求和，一般保持不变
         if pivoted.empty is False:
             pivoted.sort_values(by=pivoted.index[-1], axis=1, ascending=False, inplace=True)  # 结果按照最后一个DATE表现排序
 
-        return valuetable,destable,pivoted
+        return pivoted
     else:
-        return valuetable,destable,df
+        return df
 @login_required
 @cache_page(60 * 60 * 24 * 30) #  缓存30天
 # 此函数在前端选择了筛选条件之后通过前端传递过来的值进行分析，并返回json格式的结果
 # 1.解析前端参数到理想格式
-# 2.根据前端参数数据拼接SQL并用Pandas读取
-# 3.Pandas读取数据后，将前端选择的DIMENSION作为pivot_table方法的column参数
+# 2.根据前端参数数据拼接SQL并用Pandas
+# 3.读取Pandas读取数据后，将前端选择的DIMENSION作为pivot_table方法的column参数
 # 4.返回Json格式的结果
 def query(request):
-    # 把request.GET从QueryDict直接转化为Python字典，这个方法最快速，但得到的字典中即使是单选表单的value也是列表，
-    #{'DIMENSION_select': ['`对手`'], 'PERIOD_select': ['MAT'], 'UNIT_select': ['Value'],
-    # '`对手`_select[]': ['国王', '小牛', '灰熊', '76人', '黄蜂'],
-    # '`投篮数`_select[]': ['21', '19', '20', '18']}
     form_dict = dict(six.iterlists(request.GET))
-    print("李文毅")
-    print(form_dict)
-    valuetable,destable,pivoted = get_df(form_dict)
-    # 此时有一种利用df.to_html的formatters参数专门为表格调整数据格式的快速方式，
-    # 且该方法可以复用到很多其他的pandas表格输出结果上。
-    valuetable = valuetable.to_html(formatters=build_formatters_by_col(valuetable),  # 逐列调整表格内数字格式
-                          classes='ui selectable celled table',  # 指定表格css class为Semantic UI主题
-                          table_id='valuecount_table'  # 指定表格id
-                          )
-    # destable = destable.to_html(formatters=build_formatters_by_col(destable),  # 逐列调整表格内数字格式
-    #                       classes='ui selectable celled table',  # 指定表格css class为Semantic UI主题
-    #                       table_id='describe_table'  # 指定表格id
-    #                       )
-    table = pivoted.to_html(formatters=build_formatters_by_col(pivoted),  # 逐列调整表格内数字格式
-                          classes='ui selectable celled table',  # 指定表格css class为Semantic UI主题
-                          table_id='mypivot_table'  # 指定表格id
-                          )
-    # # Pyecharts交互图表
-    # bar_total_trend = json.loads(prepare_chart(pivoted, 'bar_total_trend', form_dict))
-    #
-    # # Matplotlib静态图表
-    # bubble_performance = prepare_chart(pivoted, 'bubble_performance', form_dict)
-    context = {
-        'ptable': table,
-        'valuecount_table':valuetable,
-        # 'describe_table':destable,
-        'mypivot_table':pivoted,
-        # 'bar_total_trend': bar_total_trend,
-        # 'bubble_performance': bubble_performance
-    }
+    pivoted = get_df(form_dict)
 
-    return HttpResponse(json.dumps(context, ensure_ascii=False), content_type="application/json charset=utf-8") # 返回结果必须是json格式
-def query01(request):
-    form_dict = dict(six.iterlists(request.GET))
-    print("form_dict=")
-    print(form_dict)
-    sql = sqlparse(form_dict)  # sql拼接
-    print(sql)
-    df = pd.read_sql_query(sa.text(sql), ENGINE)  # 将sql语句结果读取至Pandas Dataframe
-    dimension_selected = form_dict['DIMENSION_select'][0]
-    print("dimension_selected="+dimension_selected)
-    #  如果字段名有空格为了SQL语句在预设字典中加了中``的，这里要去除
-    if dimension_selected[0] == '`':
-        column = dimension_selected[1:][:-1]
-    else:
-        column = dimension_selected
-    pivoted = pd.pivot_table(df,
-                             values='AMOUNT',  # 数据透视汇总值为AMOUNT字段，一般保持不变
-                             index='DATE',  # 数据透视行为DATE字段，一般保持不变
-                             columns=column,  # 数据透视列为前端选择的分析维度
-                             aggfunc=np.sum)  # 数据透视汇总方式为求和，一般保持不变
-    if pivoted.empty is False:
-        pivoted.sort_values(by=pivoted.index[-1], axis=1, ascending=False, inplace=True)  # 结果按照最后一个DATE表现排序
     # KPI
     kpi = get_kpi(pivoted)
+
     table = ptable(pivoted)
     table = table.to_html(formatters=build_formatters_by_col(table),  # 逐列调整表格内数字格式
                           classes='ui selectable celled table',  # 指定表格css class为Semantic UI主题
                           table_id='ptable'  # 指定表格id
                           )
+
     # Pyecharts交互图表
     bar_total_trend = json.loads(prepare_chart(pivoted, 'bar_total_trend', form_dict))
+
     # Matplotlib静态图表
     bubble_performance = prepare_chart(pivoted, 'bubble_performance', form_dict)
     context = {
         "market_size": kpi["market_size"],
         "market_gr": kpi["market_gr"],
         "market_cagr": kpi["market_cagr"],
-        #ptable(pivoted).to_html()
-        'ptable':table ,
+        'ptable': table,
         'bar_total_trend': bar_total_trend,
         'bubble_performance': bubble_performance
     }
-    # print("kpi="+str(type(kpi)))
+
     return HttpResponse(json.dumps(context, ensure_ascii=False), content_type="application/json charset=utf-8") # 返回结果必须是json格式
 def get_kpi(df):
 
@@ -334,7 +128,7 @@ def get_kpi(df):
         market_gr = "N/A"
     if market_cagr == np.inf or market_cagr == -np.inf:
         market_cagr = "N/A"
-#此时kpi是字典类型
+    #此时kpi是字典类型
     return {
         "market_size": market_size,
         "market_gr": market_gr,
@@ -383,30 +177,15 @@ def get_distinct_list(column, db_table):
     df = pd.read_sql_query(sql, ENGINE)
     l = df.values.flatten().tolist()
     return l
-def sqlparse01(period, unit, filter_sql=None):
-    sql = "Select * from %s Where PERIOD = '%s' And UNIT = '%s'" % (DB_TABLE, period, unit) # 必选的两个筛选字段
-    if filter_sql is not None:
-        sql = "%s And %s" % (sql, filter_sql) # 其他可选的筛选字段，如有则以And连接自定义字符串
-    return sql
-def sqlparse02(context):
+# 构造sql语句
+def sqlparse(context):
+    print(context)
     sql = "Select * from %s Where PERIOD = '%s' And UNIT = '%s'" % \
           (DB_TABLE, context['PERIOD_select'][0], context['UNIT_select'][0])  # 先处理单选部分
 
     # 下面循环处理多选部分
     for k, v in context.items():
         if k not in ['csrfmiddlewaretoken', 'DIMENSION_select', 'PERIOD_select', 'UNIT_select']:
-            field_name = k[:-9]  # 字段名
-            selected = v  # 选择项
-            sql = sql_extent(sql, field_name, selected)  #未来可以通过进一步拼接字符串动态扩展sql语句
-    return sql
-# 构造sql语句
-def sqlparse(context):
-    # sql = "Select * from %s Where PERIOD = '%s' And UNIT = '%s'" % \
-    #       (DB_TABLE, context['PERIOD_select'][0], context['UNIT_select'][0])  # 先处理单选部分
-    sql = "Select * from %s Where true" % (DB_TABLE)
-    # 下面循环处理多选部分
-    for k, v in context.items():
-        if k not in ['csrfmiddlewaretoken', 'INDEX_select', 'COLUMN_select', 'VALUE_select','AGG_select']:
             if k[-2:] == '[]':
                 field_name = k[:-9]  # 如果键以[]结尾，删除_select[]取原字段名
             else:
@@ -414,6 +193,8 @@ def sqlparse(context):
             selected = v  # 选择项
             sql = sql_extent(sql, field_name, selected)  #未来可以通过进一步拼接字符串动态扩展sql语句
     return sql
+
+
 def sql_extent(sql, field_name, selected, operator=" AND "):
     if selected is not None:
         statement = ''
@@ -429,7 +210,7 @@ D_MULTI_SELECT = {
     'TC II': '`TC II`',
     'TC III': '`TC III`',
     'TC IV': '`TC IV`',
-    '通用名|MOLECULE': '`MOLECULE`',
+    '通用名|MOLECULE': 'MOLECULE',
     '商品名|PRODUCT': 'PRODUCT',
     '包装|PACKAGE': 'PACKAGE',
     '生产企业|CORPORATION': 'CORPORATION',
@@ -437,9 +218,6 @@ D_MULTI_SELECT = {
     '剂型': 'FORMULATION',
     '剂量': 'STRENGTH'
 }
-
-# 利用df.to_html的formatters参数专门为表格调整数据格式的快速方式
-# ，且该方法可以复用到很多其他的pandas表格输出结果上。
 def build_formatters_by_col(df):
     format_abs = lambda x: '{:,.0f}'.format(x)
     format_share = lambda x: '{:.1%}'.format(x)
@@ -540,62 +318,3 @@ def export(request, type):
     now = datetime.datetime.now().strftime("%Y%m%d%H%M%S")  # 当前精确时间不会重复，适合用来命名默认导出文件
     response['Content-Disposition'] = 'attachment; filename=' + now + '.xlsx'
     return response
-# 读取用户导入的csv文件并将其存入mysql数据库
-class CsvToMysql(object):
-    def __init__(self, hostname, port, user, passwd, db):
-        self.dbname = db
-        self.conn = connect(host=hostname, port=port, user=user, passwd=passwd, db=db)
-        self.cursor = self.conn.cursor()
-
-    # 读取csv文件
-    def read_csv(self,filename):
-        # csv文件中的字段可能会有空，在读取的时候会变成nan，nan到了mysql中是没有办法处理的就会报错，
-        # 所以需要加上这个keep_default_na=False，设为false后就会保留原空字符，就不会变成nan了
-        df = pd.read_csv(filename, keep_default_na=False, encoding='utf-8')
-        # 根据用户导入的文件名选择最后一个X.csv的X为表名,并加上``符号
-        table_name = '`'+os.path.split(filename)[-1].split('.')[0] + '`'
-        print("111111111111111111111111111111111111111111111111")
-        print(os.path.split(filename))
-        print(os.path.split(filename)[-1])
-        print(os.path.split(filename)[-1].split('.'))
-        print(os.path.split(filename)[-1].split('.')[0])
-        self.csv2mysql(db_name=self.dbname,table_name=table_name, df=df )
-
-    # pandas的数据类型和MySQL是不通用的，需要进行类型转换。字段名可能含有非法字符，需要反引号。
-    def make_table_sql(self,df):
-        #将csv中的字段类型转换成mysql中的字段类型
-        columns = df.columns.tolist()
-        make_table = []
-        make_field = []
-        for col in columns:
-            item1 = '`'+col+'`'
-            if 'int' in str(df[col].dtype):
-                char = item1 + ' INT'
-            elif 'float' in str(df[col].dtype):
-                char = item1 + ' FLOAT'
-            elif 'object' in str(df[col].dtype):
-                char = item1 + ' VARCHAR(255)'
-            elif 'datetime' in str(df[col].dtype):
-                char = item1 + ' DATETIME'
-            else:
-                char = item1 + ' VARCHAR(255)'
-            make_table.append(char)
-            make_field.append(item1)
-        return ','.join(make_table), ','.join(make_field)
-
-
-    def csv2mysql(self,db_name,table_name,df):
-        field1, field2 = self.make_table_sql(df)
-        print("create table {} ( {})".format(table_name,field1))
-        self.cursor.execute('drop table if exists {}'.format(table_name))
-        self.cursor.execute("create table {} ({})".format(table_name, field1))
-        values = df.values.tolist()
-        s = ','.join(['%s' for _ in range(len(df.columns))])
-        try:
-            print(len(values[0]),len(s.split(',')))
-            print ('insert into {}({}) values ({})'.format(table_name, field2, s), values[0])
-            self.cursor.executemany('insert into {}({}) values ({})'.format(table_name, field2, s), values)
-        except Exception as e:
-            print (e.message)
-        finally:
-            self.conn.commit()

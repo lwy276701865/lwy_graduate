@@ -22,9 +22,9 @@ from django.contrib.auth.decorators import login_required
 ENGINE = create_engine('mysql+pymysql://root:lwydecd+20@localhost:3306/test') #创建数据库连接引擎
 # 根据用户传进来的数据创建的表
 DB_TABLE='example'
-@login_required
+
 # 此函数初始化界面，然后用户点击导入按钮后自动生成可选条件，让用户选择
-def index(request):
+def index01(request):
     mselect_dict = {}
     for key, value in D_MULTI_SELECT.items():
         #mselect_dict的key为D_MULTI_SELECT的key
@@ -39,11 +39,86 @@ def index(request):
         'mselect_dict': mselect_dict
     }
     return render(request, 'chpa_data/display.html', context)
+@login_required
+def index(request):
+    if request.method == 'GET':
+        return render(request, 'chpa_data/display.html')
+    elif request.method == 'POST':
+        content =request.FILES.get("upload", None)
+        if not content:
+            return render(request,  'chpa_data/display.html', {'message': '没有上传内容'})
+        position = os.path.join('./upload',content.name)
+        #获取上传文件的文件名，并将其存储到指定位置
+        storage = open(position,'wb+')       #打开存储文件
+        for chunk in content.chunks():       #分块写入文件
+            storage.write(chunk)
+        storage.close()
+        file_path = position
+        tablename = '`'+os.path.split(file_path)[-1].split('.')[0] + '`'
+        global DB_TABLE
+        DB_TABLE = '`'+os.path.split(file_path)[-1].split('.')[0] + '`'
+        hostname = '127.0.0.1'
+        port = 3306
+        user = 'root'
+        passwd = 'lwydecd+20'
+        db = 'test'
+        M = CsvToMysql(hostname=hostname, port=port, user=user, passwd=passwd, db=db)
+        M.read_csv(file_path)
+
+        sql='select column_name,data_type from information_schema.columns where table_name={} '.format(DB_TABLE.replace('`',"'"))
+        df=pd.read_sql_query(sql,ENGINE)
+        # print(df.loc[0])
+        # print(df.iloc[:,0].size)#行数
+        # 筛选条件字典
+        print("获取表的字段及其数据类型：")
+        print(df)
+        D_screen_condition=dict(zip(df['COLUMN_NAME'],'`'+df['COLUMN_NAME']+'`'))
+        #传给前端value选择的备选值,因为value只能选择数值类型的数据,选择字符数据没有意义
+        df2=df[df['DATA_TYPE'].isin(['int','float'])]
+        D_screen_condition2VALUE=dict(zip(df2['COLUMN_NAME'],'`'+df2['COLUMN_NAME']+'`'))
+        print(D_screen_condition)
+        print(D_screen_condition2VALUE)
+        # 下面的代码负责初始化表单选项(index和column)
+        mselect_dict = {}
+        for key, value in D_screen_condition.items():
+            #D_MULTI_SELECT
+            #mselect_dict的key为D_screen_condition的key
+            # mselect_dict的value为字典，具有select和options两个字段
+            mselect_dict[key] = {}
+
+            # value的select字段表示选择了数据库中的哪个属性
+            mselect_dict[key]['select'] = value
+
+            # value的options字段表示数据库中该属性具有的各不相同的取值
+            option_list=get_distinct_list(value,DB_TABLE)
+            mselect_dict[key]['options'] = option_list  #以后可以后端通过列表为每个多选控件传递备选项
+            # 下面单独初始化value备选框
+        mselect_dict_value={}
+        for key, value in D_screen_condition2VALUE.items():
+            #D_MULTI_SELECT
+            #mselect_dict的key为D_screen_condition的key
+            # mselect_dict的value为字典，具有select和options两个字段
+            mselect_dict_value[key] = {}
+
+            # value的select字段表示选择了数据库中的哪个属性
+            mselect_dict_value[key]['select'] = value
+
+            # value的options字段表示数据库中该属性具有的各不相同的取值
+            option_list=get_distinct_list(value,DB_TABLE)
+            mselect_dict_value[key]['options'] = option_list  #以后可以后端通过列表为每个多选控件传递备选项
+        context = {
+            'mselect_dict':mselect_dict,
+            'mselect_dict_value':mselect_dict_value,
+            'message': '上传成功'
+        }
+        return render(request,  'chpa_data/display.html',context)      #返回客户端信息
+    else:
+        return HttpResponseRedirect("不支持的请求方法")
 # 此函数根据form_dict数据做对应的处理（处理为原数据或者透视数据表）
 def get_df(form_dict, is_pivoted=True):
     sql = sqlparse(form_dict)  # sql拼接
     df = pd.read_sql_query(sa.text(sql), ENGINE)  # 将sql语句结果读取至Pandas Dataframe
-
+    print("构造出来的sql语句为"+sql)
     if is_pivoted is True:
         dimension_selected = form_dict['DIMENSION_select'][0]
         if dimension_selected[0] == '`':
@@ -83,17 +158,17 @@ def query(request):
                           )
 
     # Pyecharts交互图表
-    bar_total_trend = json.loads(prepare_chart(pivoted, 'bar_total_trend', form_dict))
+    # bar_total_trend = json.loads(prepare_chart(pivoted, 'bar_total_trend', form_dict))
 
     # Matplotlib静态图表
-    bubble_performance = prepare_chart(pivoted, 'bubble_performance', form_dict)
+    # bubble_performance = prepare_chart(pivoted, 'bubble_performance', form_dict)
     context = {
         "market_size": kpi["market_size"],
         "market_gr": kpi["market_gr"],
         "market_cagr": kpi["market_cagr"],
-        'ptable': table,
-        'bar_total_trend': bar_total_trend,
-        'bubble_performance': bubble_performance
+        'ptable': table
+        # 'bar_total_trend': bar_total_trend,
+        # 'bubble_performance': bubble_performance
     }
 
     return HttpResponse(json.dumps(context, ensure_ascii=False), content_type="application/json charset=utf-8") # 返回结果必须是json格式
@@ -247,47 +322,47 @@ D_TRANS = {
     '最小制剂单位数': 'Volume (Counting Unit)'
 }
 
-def prepare_chart(df,  # 输入经过pivoted方法透视过的df，不是原始df
-                  chart_type,  # 图表类型字符串，人为设置，根据图表类型不同做不同的Pandas数据处理，及生成不同的Pyechart对象
-                  form_dict,  # 前端表单字典，用来获得一些变量作为图表的标签如单位
-                  ):
-    label = D_TRANS[form_dict['PERIOD_select'][0]] + D_TRANS[form_dict['UNIT_select'][0]]
-
-    if chart_type == 'bar_total_trend':
-        df_abs = df.sum(axis=1)  # Pandas列汇总，返回一个N行1列的series，每行是一个date的市场综合
-        # df_abs.index = df_abs.index.strftime("%Y-%m")
-        # df_abs.index = datetime.strptime(str(df_abs.index),'%Y-%m-%d %H:%M:%S.%f').strftime("%Y-%m")
-        df_abs.index =pd.to_datetime(df_abs.index,format="%Y-%m")  # 行索引日期数据变成2020-06的形式
-        df_abs = df_abs.to_frame()  # series转换成df
-        df_abs.columns = [label]  # 用一些设置变量为系列命名，准备作为图表标签
-        df_gr = df_abs.pct_change(periods=4)  # 获取同比增长率
-        df_gr.dropna(how='all', inplace=True)  # 删除没有同比增长率的行，也就是时间序列数据的最前面几行，他们没有同比
-        df_gr.replace([np.inf, -np.inf, np.nan], '-', inplace=True)  # 所有分母为0或其他情况导致的inf和nan都转换为'-'
-        chart = echarts_stackbar(df=df_abs,
-                                 df_gr=df_gr
-                                 )  # 调用stackbar方法生成Pyecharts图表对象
-        return chart.dump_options()  # 用json格式返回Pyecharts图表对象的全局设置
-    elif chart_type == 'bubble_performance':
-        df_abs = df.iloc[-1,:]  # 获取最新时间粒度的绝对值
-        df_share = df.transform(lambda x: x / x.sum(), axis=1).iloc[-1,:] # 获取份额
-        df_diff = df.diff(periods=4).iloc[-1,:]  # 获取同比净增长
-
-        chart = mpl_bubble(x=df_abs,  # x轴数据
-                           y=df_diff,  # y轴数据
-                           z=df_share * 50000,  # 气泡大小数据
-                           labels=df.columns.str.split('|').str[0],  # 标签数据
-                           title='',  # 图表标题
-                           x_title=label,  # x轴标题
-                           y_title=label + '净增长',  # y轴标题
-                           x_fmt='{:,.0f}',  # x轴格式
-                           y_fmt='{:,.0f}',  # y轴格式
-                           y_avg_line=True,  # 添加y轴分隔线
-                           y_avg_value=0,  # y轴分隔线为y=0
-                           label_limit=30  # 只显示前30个项目的标签
-                           )
-        return chart
-    else:
-        return None
+# def prepare_chart(df,  # 输入经过pivoted方法透视过的df，不是原始df
+#                   chart_type,  # 图表类型字符串，人为设置，根据图表类型不同做不同的Pandas数据处理，及生成不同的Pyechart对象
+#                   form_dict,  # 前端表单字典，用来获得一些变量作为图表的标签如单位
+#                   ):
+#     label = D_TRANS[form_dict['PERIOD_select'][0]] + D_TRANS[form_dict['UNIT_select'][0]]
+#
+#     if chart_type == 'bar_total_trend':
+#         df_abs = df.sum(axis=1)  # Pandas列汇总，返回一个N行1列的series，每行是一个date的市场综合
+#         # df_abs.index = df_abs.index.strftime("%Y-%m")
+#         # df_abs.index = datetime.strptime(str(df_abs.index),'%Y-%m-%d %H:%M:%S.%f').strftime("%Y-%m")
+#         df_abs.index =pd.to_datetime(df_abs.index,format="%Y-%m")  # 行索引日期数据变成2020-06的形式
+#         df_abs = df_abs.to_frame()  # series转换成df
+#         df_abs.columns = [label]  # 用一些设置变量为系列命名，准备作为图表标签
+#         df_gr = df_abs.pct_change(periods=4)  # 获取同比增长率
+#         df_gr.dropna(how='all', inplace=True)  # 删除没有同比增长率的行，也就是时间序列数据的最前面几行，他们没有同比
+#         df_gr.replace([np.inf, -np.inf, np.nan], '-', inplace=True)  # 所有分母为0或其他情况导致的inf和nan都转换为'-'
+#         chart = echarts_stackbar(df=df_abs,
+#                                  df_gr=df_gr
+#                                  )  # 调用stackbar方法生成Pyecharts图表对象
+#         return chart.dump_options()  # 用json格式返回Pyecharts图表对象的全局设置
+#     elif chart_type == 'bubble_performance':
+#         df_abs = df.iloc[-1,:]  # 获取最新时间粒度的绝对值
+#         df_share = df.transform(lambda x: x / x.sum(), axis=1).iloc[-1,:] # 获取份额
+#         df_diff = df.diff(periods=4).iloc[-1,:]  # 获取同比净增长
+#
+#         chart = mpl_bubble(x=df_abs,  # x轴数据
+#                            y=df_diff,  # y轴数据
+#                            z=df_share * 50000,  # 气泡大小数据
+#                            labels=df.columns.str.split('|').str[0],  # 标签数据
+#                            title='',  # 图表标题
+#                            x_title=label,  # x轴标题
+#                            y_title=label + '净增长',  # y轴标题
+#                            x_fmt='{:,.0f}',  # x轴格式
+#                            y_fmt='{:,.0f}',  # y轴格式
+#                            y_avg_line=True,  # 添加y轴分隔线
+#                            y_avg_value=0,  # y轴分隔线为y=0
+#                            label_limit=30  # 只显示前30个项目的标签
+#                            )
+#         return chart
+#     else:
+#         return None
 @login_required
 @cache_page(60 * 60 * 24 * 30)
 # 导出数据函数
@@ -318,3 +393,62 @@ def export(request, type):
     now = datetime.datetime.now().strftime("%Y%m%d%H%M%S")  # 当前精确时间不会重复，适合用来命名默认导出文件
     response['Content-Disposition'] = 'attachment; filename=' + now + '.xlsx'
     return response
+# 读取用户导入的csv文件并将其存入mysql数据库
+class CsvToMysql(object):
+    def __init__(self, hostname, port, user, passwd, db):
+        self.dbname = db
+        self.conn = connect(host=hostname, port=port, user=user, passwd=passwd, db=db)
+        self.cursor = self.conn.cursor()
+
+    # 读取csv文件
+    def read_csv(self,filename):
+        # csv文件中的字段可能会有空，在读取的时候会变成nan，nan到了mysql中是没有办法处理的就会报错，
+        # 所以需要加上这个keep_default_na=False，设为false后就会保留原空字符，就不会变成nan了
+        df = pd.read_csv(filename, keep_default_na=False, encoding='utf-8')
+        # 根据用户导入的文件名选择最后一个X.csv的X为表名,并加上``符号
+        table_name = '`'+os.path.split(filename)[-1].split('.')[0] + '`'
+        # print("111111111111111111111111111111111111111111111111")
+        # print(os.path.split(filename))
+        # print(os.path.split(filename)[-1])
+        # print(os.path.split(filename)[-1].split('.'))
+        # print(os.path.split(filename)[-1].split('.')[0])
+        self.csv2mysql(db_name=self.dbname,table_name=table_name, df=df )
+
+    # pandas的数据类型和MySQL是不通用的，需要进行类型转换。字段名可能含有非法字符，需要反引号。
+    def make_table_sql(self,df):
+        #将csv中的字段类型转换成mysql中的字段类型
+        columns = df.columns.tolist()
+        make_table = []
+        make_field = []
+        for col in columns:
+            item1 = '`'+col+'`'
+            if 'int' in str(df[col].dtype):
+                char = item1 + ' FLOAT'
+            elif 'float' in str(df[col].dtype):
+                char = item1 + ' FLOAT'
+            elif 'object' in str(df[col].dtype):
+                char = item1 + ' VARCHAR(255)'
+            elif 'datetime' in str(df[col].dtype):
+                char = item1 + ' DATETIME'
+            else:
+                char = item1 + ' VARCHAR(255)'
+            make_table.append(char)
+            make_field.append(item1)
+        return ','.join(make_table), ','.join(make_field)
+
+
+    def csv2mysql(self,db_name,table_name,df):
+        field1, field2 = self.make_table_sql(df)
+        print("create table {} ( {})".format(table_name,field1))
+        self.cursor.execute('drop table if exists {}'.format(table_name))
+        self.cursor.execute("create table {} ({})".format(table_name, field1))
+        values = df.values.tolist()
+        s = ','.join(['%s' for _ in range(len(df.columns))])
+        try:
+            print(len(values[0]),len(s.split(',')))
+            print ('insert into {}({}) values ({})'.format(table_name, field2, s), values[0])
+            self.cursor.executemany('insert into {}({}) values ({})'.format(table_name, field2, s), values)
+        except Exception as e:
+            print (e.message)
+        finally:
+            self.conn.commit()

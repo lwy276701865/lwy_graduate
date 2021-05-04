@@ -1,0 +1,190 @@
+{#{% extends "chpa_data/analysis.html" %}#}
+{#{% block display %}#}
+{#    {{ data }}#}
+{#{% endblock display %}#}
+
+
+
+
+{#第一个写基本信息，如：value_counts，describe还有透视表 #}
+{# value_counts( ) 是计数，统计所有非零元素的个数，以降序的方式输出Series #}
+{# describe( ), 能快速生成各类统计指标 #}
+{#第二个写pyecharts#}
+{#第三个写静态图表#}
+{#第四个写导出数据#}
+
+
+
+{% extends "chpa_data/analysis.html" %}
+{% load tags %}
+
+{% block display %}
+    <!-- 数据处理时的loading遮罩 -->
+    <div class="ui active dimmer" id="dimmer">
+        <div class="ui text" style="color: #FFFFFF">请使用左侧筛选框选择分析维度和定义市场</div>
+    </div>
+    <!-- 创建4个Semantic UI tab，根据鼠标点击切换，以保证页面干净清爽 -->
+    <div class="ui pointing secondary menu">
+        <a class="item active" data-tab="total"><i class="circle icon"></i>数据基本信息</a>
+        <a class="item" data-tab="competition"><i class="trophy icon"></i>竞争现状</a>
+        <a class="item" data-tab="bubble_performance"><i class="braille icon"></i>规模 vs. 增长</a>
+        <a class="item" data-tab="export"><i class="download icon"></i>导出数据</a>
+    </div>
+    <div class="ui tab segment active" data-tab="total">
+{#        分类数据统计表，即valuecounts函数#}
+        <h3 class="ui header">
+            <div class="content">
+                分类数据统计
+            </div>
+        </h3>
+        <div class="ui divider"></div>
+        <div class="ui top attached button" tabindex="0"
+             onclick="selectElementContents( document.getElementById('valuecount_table') );"
+             data-content="复制成功" data-position="bottom center">
+            <i class="copy icon"></i>
+            复制到剪贴板
+        </div>
+        <div class="ui hidden divider"></div>
+        <div class="ui container" id='value_table' style="width: 100%; overflow-x: scroll; overflow-y: hidden;">
+            <!-- Django渲染html代码时需要加入|safe，保证html不会被自动转义 -->
+            {{ valuecount_table|safe }}
+        </div>
+
+        {#        基本数据运算，即describe函数#}
+{#        <h3 class="ui header">#}
+{#            <div class="content">#}
+{#                数据基础运算#}
+{#            </div>#}
+{#        </h3>#}
+{#        <div class="ui divider"></div>#}
+{#        <div class="ui top attached button" tabindex="0"#}
+{#             onclick="selectElementContents( document.getElementById('describe_table') );"#}
+{#             data-content="复制成功" data-position="bottom center">#}
+{#            <i class="copy icon"></i>#}
+{#            复制到剪贴板#}
+{#        </div>#}
+{#        <div class="ui hidden divider"></div>#}
+{#        <div class="ui container" id='des_table' style="width: 100%; overflow-x: scroll; overflow-y: hidden;">#}
+{#            <!-- Django渲染html代码时需要加入|safe，保证html不会被自动转义 -->#}
+{#            {{ describe_table|safe }}#}
+{#        </div>#}
+
+        {#        数据透视表#}
+        <h3 class="ui header">
+            <div class="content">
+                数据透视表
+            </div>
+        </h3>
+        <div class="ui divider"></div>
+        <div class="ui top attached button" tabindex="0"
+             onclick="selectElementContents( document.getElementById('mypivot_table') );"
+             data-content="复制成功" data-position="bottom center">
+            <i class="copy icon"></i>
+            复制到剪贴板
+        </div>
+        <div class="ui hidden divider"></div>
+        <div class="ui container" id='pivot_table' style="width: 100%; overflow-x: scroll; overflow-y: hidden;">
+            <!-- Django渲染html代码时需要加入|safe，保证html不会被自动转义 -->
+            {{ mypivot_table|safe }}
+        </div>
+
+
+    </div>
+    <div class="ui tab segment" data-tab="competition">
+        <h3 class="ui header">
+            <div class="content">
+                最新横断面KPI一览
+                <div class="sub header">数据表格</div>
+            </div>
+        </h3>
+        <div class="ui divider"></div>
+        <div class="ui top attached button" tabindex="0"
+             onclick="selectElementContents( document.getElementById('ptable') );"
+             data-content="复制成功" data-position="bottom center">
+            <i class="copy icon"></i>
+            复制到剪贴板
+        </div>
+        <div class="ui hidden divider"></div>
+        <div class="ui container" id='result_table' style="width: 100%; overflow-x: scroll; overflow-y: hidden;">
+            <!-- Django渲染html代码时需要加入|safe，保证html不会被自动转义 -->
+            {{ ptable|safe }}
+        </div>
+
+    </div>
+    <div class="ui tab segment" data-tab="bubble_performance">
+        <h3 class="ui header">
+            <div class="content">
+                规模 versus 增长
+                <div class="sub header">带线性拟合的气泡图</div>
+            </div>
+        </h3>
+        <div class="ui divider"></div>
+        <div class="ui container">
+            <img id="bubble_performance" style="width: 100%" alt="" />
+        </div>
+    </div>
+    <div class="ui tab segment" data-tab="export">
+        <div class="ui buttons">
+            <input class="ui blue button" type='button' id='export_pivot' value="导出整理后时间序列数据"/>
+        </div>
+        <div class="ui buttons">
+            <input class="ui blue button" type='button' id='export_raw' value="导出原始数据"/>
+        </div>
+    </div>
+
+    <!-- 下方js为保证Semantic UI tab类工作 -->
+    <script>
+        $('.pointing.secondary.menu .item').tab();
+    </script>
+
+{#    一键复制表格的功能   #}
+    <script>
+        // 复制有node结构的文本区域
+        function selectElementContents(el) {
+            var body = document.body, range, sel;
+            if (document.createRange && window.getSelection) {
+                range = document.createRange();
+                sel = window.getSelection();
+                sel.removeAllRanges();
+                try {
+                    range.selectNodeContents(el);
+                    sel.addRange(range);
+                } catch (e) {
+                    range.selectNode(el);
+                    sel.addRange(range);
+                }
+            } else if (body.createTextRange) {
+                range = body.createTextRange();
+                range.moveToElementText(el);
+                range.select();
+            }
+            document.execCommand("Copy");
+        }
+    </script>
+    <script>
+        // 按钮点击后有弹出文本，显示data-content内容“复制成功”
+        $('.ui.top.attached.button')
+            .popup({
+                on: 'click'
+            })
+        ;
+    </script>
+
+{#    导出数据  #}
+    <script>
+        $("#export_pivot").click(function(){
+            var form_data = getForm();
+         {#有关 URL 操作的工具函数，暂时也只有一种，那就是$.param()方法。在 jQuery 中，我们可以使用$.param()方法#}
+         {#将数组或对象转化为字符串序列，以便用于 URL 查询字符串或 Ajax 请求。#}
+            var downloadUrl = '{% url 'chpa:export' 'pivoted' %}'+ '?' + $.param(form_data, true);
+            window.location.href = downloadUrl;
+        });
+
+        $("#export_raw").click(function(){
+            var form_data = getForm();
+
+            var downloadUrl = '{% url 'chpa:export' 'raw' %}'+ '?' + $.param(form_data, true);
+            window.location.href = downloadUrl;
+        })
+    </script>
+{% endblock %}

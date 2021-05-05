@@ -5,50 +5,30 @@
     <div class="ui active dimmer" id="dimmer">
         <div class="ui text" style="color: #FFFFFF">请使用左侧筛选框选择分析维度和定义市场</div>
     </div>
-    <!-- 创建2个Semantic UI tab，根据鼠标点击切换，以保证页面干净清爽 -->
+
+    <!-- 创建4个Semantic UI tab，根据鼠标点击切换，以保证页面干净清爽 -->
     <div class="ui pointing secondary menu">
         <a class="item active" data-tab="total"><i class="circle icon"></i>总体表现</a>
         <a class="item" data-tab="competition"><i class="trophy icon"></i>竞争现状</a>
         {#        <a class="item" data-tab="bubble_performance"><i class="braille icon"></i>规模 vs. 增长</a>#}
         {#        <a class="item" data-tab="export"><i class="download icon"></i>导出数据</a>#}
     </div>
+
+    {#    第一个tab，放了pyecharts和表格#}
     <div class="ui tab segment active" data-tab="total">
+        {#        pyecharts图表#}
         <h3 class="ui header">
             <div class="content">
-                定义市场当前表现
-                <div class="sub header">KPIs</div>
+                定义市场总量趋势
+                <div class="sub header">柱状折线复合图</div>
             </div>
         </h3>
         <div class="ui divider"></div>
-        <!-- Semantic UI的statistic类能呈现“醒目大数字”的效果 -->
-        <div class="ui small three statistics">
-            <div class="statistic">
-                <div class="value" id="value_size">
-                    {{ market_size }}
-                </div>
-                <div class="label" id="label_size_unit">
-                    滚动年金额
-                </div>
-            </div>
-            <div class="statistic" id="div_gr">
-                <div class="value" id="value_gr">
-                    {{ market_gr }}
-                </div>
-                <div class="label">
-                    同比增长
-                </div>
-            </div>
-            <div class="statistic" id="div_cagr">
-                <div class="value" id="value_cagr">
-                    {{ market_cagr }}
-                </div>
-                <div class="label">
-                    4年CAGR
-                </div>
-            </div>
+        <div class="ui container">
+            <div id="bar_total_trend" style="width:1000px; height:600px;"></div>
         </div>
-    </div>
-    <div class="ui tab segment" data-tab="competition">
+
+        {#        表格#}
         <h3 class="ui header">
             <div class="content">
                 最新横断面KPI一览
@@ -63,12 +43,25 @@
             复制到剪贴板
         </div>
         <div class="ui hidden divider"></div>
-
         <div class="ui container" id='result_table' style="width: 100%; overflow-x: scroll; overflow-y: hidden;">
             <!-- Django渲染html代码时需要加入|safe，保证html不会被自动转义 -->
             {{ ptable|safe }}
         </div>
+    </div>
 
+    {#    第二个tab，应该放置三个pyecharts图表，即index和column分类统计图；describe图表#}
+    <div class="ui tab segment" data-tab="competition">
+        {#        pyecharts图表#}
+        <h3 class="ui header">
+            <div class="content">
+                定义市场总量趋势
+                <div class="sub header">柱状折线复合图</div>
+            </div>
+        </h3>
+        <div class="ui divider"></div>
+        <div class="ui container">
+            <div id="info_chart" style="width:1000px; height:600px;"></div>
+        </div>
     </div>
     {#    <div class="ui tab segment" data-tab="bubble_performance">#}
     {#        <h3 class="ui header">#}

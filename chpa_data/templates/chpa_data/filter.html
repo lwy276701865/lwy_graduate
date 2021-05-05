@@ -10,29 +10,39 @@
             <div class="field">
                 <div class="fields">
                     <div class="sixteen wide field">
+                        <h4>选择column</h4>
                         <select name="DIMENSION_select" id="DIMENSION_select" class="ui fluid search dropdown">
+                            <option value="" style="display: none"></option>
                             {% for key, value in mselect_dict.items %}
-                                {% if value.select == 'PRODUCT' %}
-                                    <option value="{{ value.select }}" selected>{{ key }}</option>
-                                {% else %}
-                                    <option value="{{ value.select }}">{{ key }}</option>
-                                {% endif %}
+                                <option value="{{ value.select }}">{{ key }}</option>
                             {% endfor %}
                         </select>
                     </div>
                 </div>
                 <div class="fields">
-                    <div class="eight wide field">
-                        <select name="UNIT_select" id="UNIT_select" class="ui fluid search dropdown">
-                            <option value="Value" selected>金额</option>
-                            <option value="Volume">盒数</option>
-                            <option value="Volume (Counting Unit)">最小制剂单位数</option>
+                    <div class="sixteen wide field">
+                        <h4>选择index</h4>
+                        <select name="INDEX_select" id="INDEX_select" class="ui fluid search dropdown">
+                            {#                            <option value="Value" selected>金额</option>#}
+                            {#                            <option value="Volume">盒数</option>#}
+                            {#                            <option value="Volume (Counting Unit)">最小制剂单位数</option>#}
+                            <option value="" style="display: none"></option>
+                            {% for key, value in mselect_dict.items %}
+                                <option value="{{ value.select }}">{{ key }}</option>
+                            {% endfor %}
                         </select>
                     </div>
-                    <div class="eight wide field">
-                        <select name="PERIOD_select" id="PERIOD_select" class="ui fluid search dropdown">
-                            <option value="MAT" selected>滚动年</option>
-                            <option value="QTR">季度</option>
+                </div>
+                <div class="fields">
+                    <div class="sixteen wide field">
+                        <h4>选择value</h4>
+                        <select name="VALUE_select" id="VALUE_select" class="ui fluid search dropdown">
+                            {#                        <option value="MAT" selected>滚动年</option>#}
+                            {#                        <option value="QTR">季度</option>#}
+                            <option value="" style="display: none"></option>
+                            {% for key, value in mselect_dict_value.items %}
+                                <option value="{{ value.select }}">{{ key }}</option>
+                            {% endfor %}
                         </select>
                     </div>
                 </div>
@@ -67,30 +77,26 @@
 <script type="text/javascript">
     $("#AJAX_get").click(function (event) {
         event.preventDefault(); // 防止表单默认的提交
+
         var dimmer = $("#dimmer");
         dimmer.attr('class', 'ui active dimmer'); // 点击筛选按钮后dimmer变成active
         dimmer.children('div').remove(); // 删除初始化文字
         dimmer.append('<div class="ui text loader">数据加载中……</div>'); // 增加loading效果和文字
 
-        // 获取单选下拉框的值
-        var form_data = {
-            "DIMENSION_select": $("#DIMENSION_select").val(),
-            "PERIOD_select": $("#PERIOD_select").val(),
-            "UNIT_select": $("#UNIT_select").val(),
-        };
+        {# 获取用户选择的表单值#}
+        var form_data=getForm()
 
-        // 获取多选下拉框的值
-        var dict = {{ mselect_dict|safe }};
-        for (key in dict) {
-            var form_name = dict[key]['select'] + "_select";
-            jquery_selector_id = "[id='" + form_name + "']";//因为我们的部分多选框id有空格，要用这种写法
-            form_data[form_name] = $(jquery_selector_id).val();
-        }
         // Pyecharts图表初始化
-        {#var chart = echarts.init(document.getElementById('bar_total_trend'), 'white', {renderer: 'canvas'});#}
-        {#chart.showLoading({#}
-        {#    text : '正在加载数据'#}
-        {# });  //增加加载提示#}
+        var chart = echarts.init(document.getElementById('bar_total_trend'), 'white', {renderer: 'canvas'});
+        chart.showLoading({
+            text : '正在加载数据'
+         });  //增加加载提示
+
+        var info_chart = echarts.init(document.getElementById('info_chart'), 'white', {renderer: 'canvas'});
+        info_chart.showLoading({
+            text : '正在加载数据'
+         });  //增加加载提示
+
         $.ajax({
             // 请求的url
             url: '{% url 'chpa:query' %}',
@@ -101,22 +107,26 @@
             // 回调函数，其中ret是返回的JSON，可以以字典的方式调用
             success: function (ret) {     //成功执行
                 // 更新单位标签
-                $("#label_size_unit").html("最新"+form_data['PERIOD_select']+ " " +form_data['UNIT_select']);
+                $("#label_size_unit").html("最新"+form_data['VALUE_select']+ " " +form_data['INDEX_select']);
                 // 把查询结果输出到网页上预留id的DOM元素中
                 $("#value_size").html(ret["market_size"].toLocaleString());
                 $("#value_gr").html(ret["market_gr"].toLocaleString());
                 $("#value_cagr").html(ret["market_cagr"].toLocaleString());
-                $("#result_table").html(ret['ptable']);
+                $("#result_table").html(ret['ptable']);//这个ptable是后端query函数传过来的ptable
                 initTable($("#ptable")) // 为id为ptable的DOM表格初始化DataTables，即上一行刚刚修改了DOM元素的那个
 
 
                 // 去除加载遮罩（去掉active）
                 dimmer.attr('class', 'ui dimmer');
-                // 展示Pyecharts整体市场柱状组合图
-                {#chart.clear();#}
-                {#chart.setOption(ret['bar_total_trend']);#}
-                {#chart.hideLoading()#}
 
+                // 展示Pyecharts整体市场柱状组合图
+                chart.clear();
+                chart.setOption(ret['bar_total_trend']);
+                chart.hideLoading()
+
+                info_chart.clear();
+                info_chart.setOption(ret['info_chart']);
+                info_chart.hideLoading()
                 // 展示Matplotlib气泡图
                 {#$("#bubble_performance").attr('src', ret['bubble_performance']);#}
             },
@@ -187,23 +197,30 @@
         );
     }
 </script>
+{#获取前端选择的表单结果，即用户选择了哪些数据#}
 <script>
     function getForm(){
         // 获取单选下拉框的值
         var form_data = {
             "DIMENSION_select": $("#DIMENSION_select").val(),
-            "PERIOD_select": $("#PERIOD_select").val(),
-            "UNIT_select": $("#UNIT_select").val(),
+            "VALUE_select": $("#VALUE_select").val(),
+            "INDEX_select": $("#INDEX_select").val(),
         };
 
-        // 获取多选下拉框的值
+        // 获取多选下拉框的值（index和column）
         var dict = {{ mselect_dict|safe }};
         for (key in dict) {
             var form_name = dict[key]['select'] + "_select";
             jquery_selector_id = "[id='" + form_name + "']";//因为我们的部分多选框id有空格，要用这种写法
             form_data[form_name] = $(jquery_selector_id).val();
         }
-
+        // 获取value下拉框的值
+        var dict2 = {{ mselect_dict_value|safe }};
+        for (key in dict2) {
+            var form_name = dict2[key]['select'] + "_select";
+            jquery_selector_id = "[id='" + form_name + "']";//因为我们的部分多选框id有空格，要用这种写法
+            form_data[form_name] = $(jquery_selector_id).val();
+        }
         return form_data
     }
 </script>

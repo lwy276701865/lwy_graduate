@@ -22,6 +22,8 @@ from django.contrib.auth.decorators import login_required
 ENGINE = create_engine('mysql+pymysql://root:lwydecd+20@localhost:3306/test') #创建数据库连接引擎
 # 根据用户传进来的数据创建的表
 DB_TABLE='example'
+column=''
+index=''
 
 # 此函数初始化界面，然后用户点击导入按钮后自动生成可选条件，让用户选择
 def index01(request):
@@ -76,7 +78,9 @@ def index(request):
         #传给前端value选择的备选值,因为value只能选择数值类型的数据,选择字符数据没有意义
         df2=df[df['DATA_TYPE'].isin(['int','float'])]
         D_screen_condition2VALUE=dict(zip(df2['COLUMN_NAME'],'`'+df2['COLUMN_NAME']+'`'))
+        print("index/column备选项为:")
         print(D_screen_condition)
+        print("value备选项为:")
         print(D_screen_condition2VALUE)
         # 下面的代码负责初始化表单选项(index和column)
         mselect_dict = {}
@@ -114,6 +118,13 @@ def index(request):
         return render(request,  'chpa_data/display.html',context)      #返回客户端信息
     else:
         return HttpResponseRedirect("不支持的请求方法")
+# 此函数删除字符串两边的反引号``
+def delesig(str):
+    if str[0]=='`':
+        str=str[1:][:-1]
+    else:
+        str=str
+    return str
 # 此函数根据form_dict数据做对应的处理（处理为原数据或者透视数据表）
 def get_df(form_dict, is_pivoted=True):
     sql = sqlparse(form_dict)  # sql拼接
@@ -121,14 +132,16 @@ def get_df(form_dict, is_pivoted=True):
     print("构造出来的sql语句为"+sql)
     if is_pivoted is True:
         dimension_selected = form_dict['DIMENSION_select'][0]
-        if dimension_selected[0] == '`':
-            column = dimension_selected[1:][:-1]
-        else:
-            column = dimension_selected
-
+        index_selected = form_dict['INDEX_select'][0]
+        value_selected = form_dict['VALUE_select'][0]
+        global column
+        column=delesig(dimension_selected)
+        global index
+        index=delesig(index_selected)
+        value=delesig(value_selected)
         pivoted = pd.pivot_table(df,
-                                 values='AMOUNT',  # 数据透视汇总值为AMOUNT字段，一般保持不变
-                                 index='DATE',  # 数据透视行为DATE字段，一般保持不变
+                                 values=value,#'AMOUNT',  # 数据透视汇总值为AMOUNT字段，一般保持不变
+                                 index=index,#'DATE',  # 数据透视行为DATE字段，一般保持不变
                                  columns=column,  # 数据透视列为前端选择的分析维度
                                  aggfunc=np.sum)  # 数据透视汇总方式为求和，一般保持不变
         if pivoted.empty is False:
@@ -139,15 +152,18 @@ def get_df(form_dict, is_pivoted=True):
         return df
 @login_required
 @cache_page(60 * 60 * 24 * 30) #  缓存30天
-# 此函数在前端选择了筛选条件之后通过前端传递过来的值进行分析，并返回json格式的结果
+# query函数在前端选择了筛选条件之后通过前端传递过来的值进行分析，并返回json格式的结果
 # 1.解析前端参数到理想格式
 # 2.根据前端参数数据拼接SQL并用Pandas
 # 3.读取Pandas读取数据后，将前端选择的DIMENSION作为pivot_table方法的column参数
 # 4.返回Json格式的结果
+# 注：前三步交给get_df函数做了
 def query(request):
     form_dict = dict(six.iterlists(request.GET))
+    print("前端表单转换为字典：")
+    print(form_dict)
     pivoted = get_df(form_dict)
-
+    df=get_df(form_dict,is_pivoted=False)
     # KPI
     kpi = get_kpi(pivoted)
 
@@ -158,16 +174,18 @@ def query(request):
                           )
 
     # Pyecharts交互图表
-    # bar_total_trend = json.loads(prepare_chart(pivoted, 'bar_total_trend', form_dict))
-
+    bar_total_trend = json.loads(prepare_chart(pivoted, 'bar_total_trend', form_dict,column))
+    #describe函数转为图表
+    info_chart=json.loads(prepare_chart(df, 'get_info_chart', index,column))
     # Matplotlib静态图表
     # bubble_performance = prepare_chart(pivoted, 'bubble_performance', form_dict)
     context = {
         "market_size": kpi["market_size"],
         "market_gr": kpi["market_gr"],
         "market_cagr": kpi["market_cagr"],
-        'ptable': table
-        # 'bar_total_trend': bar_total_trend,
+        'ptable': table,
+        'bar_total_trend': bar_total_trend,
+        'info_chart':info_chart,
         # 'bubble_performance': bubble_performance
     }
 
@@ -254,13 +272,11 @@ def get_distinct_list(column, db_table):
     return l
 # 构造sql语句
 def sqlparse(context):
-    print(context)
-    sql = "Select * from %s Where PERIOD = '%s' And UNIT = '%s'" % \
-          (DB_TABLE, context['PERIOD_select'][0], context['UNIT_select'][0])  # 先处理单选部分
+    sql = "Select * from %s Where true " % (DB_TABLE)  # 构造sql语句前半段
 
-    # 下面循环处理多选部分
+    # 下面循环处理多选部分（即数据筛选部分）
     for k, v in context.items():
-        if k not in ['csrfmiddlewaretoken', 'DIMENSION_select', 'PERIOD_select', 'UNIT_select']:
+        if k not in ['csrfmiddlewaretoken', 'DIMENSION_select', 'VALUE_select', 'INDEX_select']:
             if k[-2:] == '[]':
                 field_name = k[:-9]  # 如果键以[]结尾，删除_select[]取原字段名
             else:
@@ -269,7 +285,7 @@ def sqlparse(context):
             sql = sql_extent(sql, field_name, selected)  #未来可以通过进一步拼接字符串动态扩展sql语句
     return sql
 
-
+# 通过AND关键字连接来扩展sql语句
 def sql_extent(sql, field_name, selected, operator=" AND "):
     if selected is not None:
         statement = ''
@@ -293,6 +309,7 @@ D_MULTI_SELECT = {
     '剂型': 'FORMULATION',
     '剂量': 'STRENGTH'
 }
+# 该函数用来格式化表格的数据，用到query函数里的table属性里面
 def build_formatters_by_col(df):
     format_abs = lambda x: '{:,.0f}'.format(x)
     format_share = lambda x: '{:.1%}'.format(x)
@@ -322,47 +339,51 @@ D_TRANS = {
     '最小制剂单位数': 'Volume (Counting Unit)'
 }
 
-# def prepare_chart(df,  # 输入经过pivoted方法透视过的df，不是原始df
-#                   chart_type,  # 图表类型字符串，人为设置，根据图表类型不同做不同的Pandas数据处理，及生成不同的Pyechart对象
-#                   form_dict,  # 前端表单字典，用来获得一些变量作为图表的标签如单位
-#                   ):
-#     label = D_TRANS[form_dict['PERIOD_select'][0]] + D_TRANS[form_dict['UNIT_select'][0]]
-#
-#     if chart_type == 'bar_total_trend':
-#         df_abs = df.sum(axis=1)  # Pandas列汇总，返回一个N行1列的series，每行是一个date的市场综合
-#         # df_abs.index = df_abs.index.strftime("%Y-%m")
-#         # df_abs.index = datetime.strptime(str(df_abs.index),'%Y-%m-%d %H:%M:%S.%f').strftime("%Y-%m")
-#         df_abs.index =pd.to_datetime(df_abs.index,format="%Y-%m")  # 行索引日期数据变成2020-06的形式
-#         df_abs = df_abs.to_frame()  # series转换成df
-#         df_abs.columns = [label]  # 用一些设置变量为系列命名，准备作为图表标签
-#         df_gr = df_abs.pct_change(periods=4)  # 获取同比增长率
-#         df_gr.dropna(how='all', inplace=True)  # 删除没有同比增长率的行，也就是时间序列数据的最前面几行，他们没有同比
-#         df_gr.replace([np.inf, -np.inf, np.nan], '-', inplace=True)  # 所有分母为0或其他情况导致的inf和nan都转换为'-'
-#         chart = echarts_stackbar(df=df_abs,
-#                                  df_gr=df_gr
-#                                  )  # 调用stackbar方法生成Pyecharts图表对象
-#         return chart.dump_options()  # 用json格式返回Pyecharts图表对象的全局设置
-#     elif chart_type == 'bubble_performance':
-#         df_abs = df.iloc[-1,:]  # 获取最新时间粒度的绝对值
-#         df_share = df.transform(lambda x: x / x.sum(), axis=1).iloc[-1,:] # 获取份额
-#         df_diff = df.diff(periods=4).iloc[-1,:]  # 获取同比净增长
-#
-#         chart = mpl_bubble(x=df_abs,  # x轴数据
-#                            y=df_diff,  # y轴数据
-#                            z=df_share * 50000,  # 气泡大小数据
-#                            labels=df.columns.str.split('|').str[0],  # 标签数据
-#                            title='',  # 图表标题
-#                            x_title=label,  # x轴标题
-#                            y_title=label + '净增长',  # y轴标题
-#                            x_fmt='{:,.0f}',  # x轴格式
-#                            y_fmt='{:,.0f}',  # y轴格式
-#                            y_avg_line=True,  # 添加y轴分隔线
-#                            y_avg_value=0,  # y轴分隔线为y=0
-#                            label_limit=30  # 只显示前30个项目的标签
-#                            )
-#         return chart
-#     else:
-#         return None
+def prepare_chart(df,  # 输入经过pivoted方法透视过的df，不是原始df
+                  chart_type,  # 图表类型字符串，人为设置，根据图表类型不同做不同的Pandas数据处理，及生成不同的Pyechart对象
+                  index,  # 前端表单字典，用来获得一些变量作为图表的标签如单位
+                  column
+                  ):
+    label ='MATVALUE'
+
+    if chart_type == 'bar_total_trend':
+        df_abs = df.sum(axis=1)  # Pandas列汇总，返回一个N行1列的series，每行是一个date的市场综合
+        # df_abs.index = df_abs.index.strftime("%Y-%m")
+        # df_abs.index = datetime.strptime(str(df_abs.index),'%Y-%m-%d %H:%M:%S.%f').strftime("%Y-%m")
+        df_abs.index =pd.to_datetime(df_abs.index,format="%Y-%m")  # 行索引日期数据变成2020-06的形式
+        df_abs = df_abs.to_frame()  # series转换成df
+        df_abs.columns = [label]  # 用一些设置变量为系列命名，准备作为图表标签
+        df_gr = df_abs.pct_change(periods=4)  # 获取同比增长率
+        df_gr.dropna(how='all', inplace=True)  # 删除没有同比增长率的行，也就是时间序列数据的最前面几行，他们没有同比
+        df_gr.replace([np.inf, -np.inf, np.nan], '-', inplace=True)  # 所有分母为0或其他情况导致的inf和nan都转换为'-'
+        chart = echarts_stackbar(df=df_abs,
+                                 df_gr=df_gr
+                                 )  # 调用stackbar方法生成Pyecharts图表对象
+        return chart.dump_options()  # 用json格式返回Pyecharts图表对象的全局设置
+    elif chart_type == 'bubble_performance':
+        df_abs = df.iloc[-1,:]  # 获取最新时间粒度的绝对值
+        df_share = df.transform(lambda x: x / x.sum(), axis=1).iloc[-1,:] # 获取份额
+        df_diff = df.diff(periods=4).iloc[-1,:]  # 获取同比净增长
+
+        chart = mpl_bubble(x=df_abs,  # x轴数据
+                           y=df_diff,  # y轴数据
+                           z=df_share * 50000,  # 气泡大小数据
+                           labels=df.columns.str.split('|').str[0],  # 标签数据
+                           title='',  # 图表标题
+                           x_title=label,  # x轴标题
+                           y_title=label + '净增长',  # y轴标题
+                           x_fmt='{:,.0f}',  # x轴格式
+                           y_fmt='{:,.0f}',  # y轴格式
+                           y_avg_line=True,  # 添加y轴分隔线
+                           y_avg_value=0,  # y轴分隔线为y=0
+                           label_limit=30  # 只显示前30个项目的标签
+                           )
+        return chart
+    elif chart_type=='get_info_chart':#渲染df.describe的出来的表格
+        chart=creat_info_chart(df,index,column)
+        return chart.dump_options()  # 用json格式返回Pyecharts图表对象的全局设置
+    else:
+        return None
 @login_required
 @cache_page(60 * 60 * 24 * 30)
 # 导出数据函数
@@ -438,6 +459,7 @@ class CsvToMysql(object):
 
 
     def csv2mysql(self,db_name,table_name,df):
+        print("开始构造表格：")
         field1, field2 = self.make_table_sql(df)
         print("create table {} ( {})".format(table_name,field1))
         self.cursor.execute('drop table if exists {}'.format(table_name))

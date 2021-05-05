@@ -1,4 +1,4 @@
-from pyecharts.charts import Line, Bar
+from pyecharts.charts import Line, Bar, Grid
 from pyecharts import options as opts
 import numpy as np
 import matplotlib.pyplot as plt
@@ -217,8 +217,74 @@ def echarts_stackbar(df,  # 传入数据df，应该是一个行索引为date的�
             )
     else:
         stackbar = (Bar())
-
+    # grid = (
+    #     Grid()
+    #         .add(stackbar, grid_opts=opts.GridOpts(pos_bottom="60%"))
+    #         .add(line, grid_opts=opts.GridOpts(pos_top="60%"))
+    # )
+    # grid2 = (
+    #     Grid()
+    #         .add(stackbar.overlap(line), grid_opts=opts.GridOpts(pos_bottom="60%"))
+    #         .add(line, grid_opts=opts.GridOpts(pos_top="60%"))
+    # )
     if df_gr is not None:
-        return stackbar.overlap(line) # 如果有次坐标轴最后要用overlap方法组合
+        return stackbar.overlap(line)# 如果有次坐标轴最后要用overlap方法组合
     else:
         return stackbar
+# 此函数创建三个基本信息图表
+def creat_info_chart(df,index,column):
+    bar=(
+        Bar()
+            .add_xaxis(list(df[index].value_counts().index))
+            .add_yaxis(index+"个数",df[index].value_counts().values.tolist())
+            .set_global_opts(
+            toolbox_opts=opts.ToolboxOpts(pos_right=1),
+            title_opts=opts.TitleOpts(title="index分布情况"),
+            legend_opts=opts.LegendOpts(pos_left="65%"),
+
+            yaxis_opts=opts.AxisOpts(name="容量"),
+            xaxis_opts=opts.AxisOpts(name=index),
+        )
+    )
+    bar2=(
+        Bar()
+            .add_xaxis(list(df[column].value_counts().index))
+            .add_yaxis(column+"个数",df[column].value_counts().values.tolist())
+            .set_global_opts(
+            title_opts=opts.TitleOpts(title="value分布情况",pos_left="50%"),
+            toolbox_opts=opts.ToolboxOpts(pos_right=1),
+            legend_opts=opts.LegendOpts(pos_left="25%"),
+            yaxis_opts=opts.AxisOpts(name="容量"),
+            xaxis_opts=opts.AxisOpts(name=column),
+        )
+    )
+    x_data = list(df.describe().index)
+    yaxis=list(df.describe().columns)
+    line=Line()
+    line.add_xaxis(xaxis_data=x_data)
+    for i in range(len(yaxis)):
+        line.add_yaxis(
+            series_name=yaxis[i],
+            stack='info_data',
+            y_axis=df.describe()[yaxis[i]],
+            label_opts=opts.LabelOpts(is_show=False),
+        )
+    line.set_global_opts(
+        toolbox_opts=opts.ToolboxOpts(pos_right=1),
+        title_opts=opts.TitleOpts(title="原数据基本信息图表",pos_top="50%"),
+        tooltip_opts=opts.TooltipOpts(trigger="axis", axis_pointer_type="cross"),
+        legend_opts=opts.LegendOpts(pos_top="50%"),
+        yaxis_opts=opts.AxisOpts(
+            type_="category",
+            axistick_opts=opts.AxisTickOpts(is_show=True),
+            splitline_opts=opts.SplitLineOpts(is_show=True),
+        ),
+        xaxis_opts=opts.AxisOpts(type_="category", boundary_gap=False),
+    )
+    grid = (
+        Grid()
+            .add(bar, grid_opts=opts.GridOpts(pos_bottom="60%",pos_left="55%"))
+            .add(bar2, grid_opts=opts.GridOpts(pos_bottom="60%",pos_right="55%"))
+            .add(line, grid_opts=opts.GridOpts(pos_top="60%"))
+    )
+    return grid

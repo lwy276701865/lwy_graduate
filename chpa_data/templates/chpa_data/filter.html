@@ -3,22 +3,15 @@
         <form action="" method="post" enctype="multipart/form-data">
             <!-- 在Django所有的 POST 表单元素时，需要加上下方的csrf_token tag，主要是安全方面的机制，本例后续使用AJAX方法，这里的POST class和token都不生效 -->
             {% csrf_token %}
+            {#            导入文件区域#}
             <input type="file" name="upload" accept="text/csv" />
             <input  class="ui fluid large blue submit button" type="submit" value="导入" >
             <div class="ui info message">{{ message}}</div>
+
+            {#    分析维度区域#}
             <h3 class="ui header" id="analysis">分析维度</h3>
             <div class="field">
-                <div class="fields">
-                    <div class="sixteen wide field">
-                        <h4>选择column</h4>
-                        <select name="DIMENSION_select" id="DIMENSION_select" class="ui fluid search dropdown">
-                            <option value="" style="display: none"></option>
-                            {% for key, value in mselect_dict.items %}
-                                <option value="{{ value.select }}">{{ key }}</option>
-                            {% endfor %}
-                        </select>
-                    </div>
-                </div>
+                {#            选择index#}
                 <div class="fields">
                     <div class="sixteen wide field">
                         <h4>选择index</h4>
@@ -33,6 +26,21 @@
                         </select>
                     </div>
                 </div>
+
+                {#                选择column#}
+                <div class="fields">
+                    <div class="sixteen wide field">
+                        <h4>选择column</h4>
+                        <select name="DIMENSION_select" id="DIMENSION_select" class="ui fluid search dropdown">
+                            <option value="" style="display: none"></option>
+                            {% for key, value in mselect_dict.items %}
+                                <option value="{{ value.select }}">{{ key }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                </div>
+
+                {#            选择value#}
                 <div class="fields">
                     <div class="sixteen wide field">
                         <h4>选择value</h4>
@@ -47,6 +55,7 @@
                     </div>
                 </div>
             </div>
+            {#        数据筛选区域#}
             <h3 class="ui header" id="data_filter">数据筛选</h3>
             <div class="field">
                 {% for key, value in mselect_dict.items %}
@@ -62,6 +71,7 @@
                 {% endfor %}
             </div>
             <br>
+            {#        查询按钮#}
             <div class="ui buttons">
                 <input class="ui blue button" type='button' id='AJAX_get' value="查询"/>
             </div>
@@ -74,6 +84,8 @@
     $('.ui.fluid.search.dropdown')
         .dropdown({ fullTextSearch: true });
 </script>
+
+{#ajax异步传参相关函数#}
 <script type="text/javascript">
     $("#AJAX_get").click(function (event) {
         event.preventDefault(); // 防止表单默认的提交
@@ -87,10 +99,10 @@
         var form_data=getForm()
 
         // Pyecharts图表初始化
-        var chart = echarts.init(document.getElementById('bar_total_trend'), 'white', {renderer: 'canvas'});
-        chart.showLoading({
-            text : '正在加载数据'
-         });  //增加加载提示
+        {#var chart = echarts.init(document.getElementById('bar_total_trend'), 'white', {renderer: 'canvas'});#}
+        {#chart.showLoading({#}
+        {#    text : '正在加载数据'#}
+        {# });  //增加加载提示#}
 
         var info_chart = echarts.init(document.getElementById('info_chart'), 'white', {renderer: 'canvas'});
         info_chart.showLoading({
@@ -106,12 +118,6 @@
             data: form_data,
             // 回调函数，其中ret是返回的JSON，可以以字典的方式调用
             success: function (ret) {     //成功执行
-                // 更新单位标签
-                $("#label_size_unit").html("最新"+form_data['VALUE_select']+ " " +form_data['INDEX_select']);
-                // 把查询结果输出到网页上预留id的DOM元素中
-                $("#value_size").html(ret["market_size"].toLocaleString());
-                $("#value_gr").html(ret["market_gr"].toLocaleString());
-                $("#value_cagr").html(ret["market_cagr"].toLocaleString());
                 $("#result_table").html(ret['ptable']);//这个ptable是后端query函数传过来的ptable
                 initTable($("#ptable")) // 为id为ptable的DOM表格初始化DataTables，即上一行刚刚修改了DOM元素的那个
 
@@ -120,15 +126,16 @@
                 dimmer.attr('class', 'ui dimmer');
 
                 // 展示Pyecharts整体市场柱状组合图
-                chart.clear();
-                chart.setOption(ret['bar_total_trend']);
-                chart.hideLoading()
+                {#chart.clear();#}
+                {#chart.setOption(ret['bar_total_trend']);#}
+                {#chart.hideLoading()#}
 
                 info_chart.clear();
                 info_chart.setOption(ret['info_chart']);
                 info_chart.hideLoading()
+
                 // 展示Matplotlib气泡图
-                {#$("#bubble_performance").attr('src', ret['bubble_performance']);#}
+                $("#bubble_performance").attr('src', ret['bubble_performance']);
             },
             error: function () {            //失败
                 console.log('失败')
@@ -138,12 +145,13 @@
         });
     })
 </script>
+
 {#初始化表格#}
 <script>
     function initTable(table) {
         table.DataTable(
             {
-                order: [[1, "desc"]], // 初始以第2列（注意第一列索引为0）由高到低排序
+                {#order: [[1, "desc"]], // 初始以第2列（注意第一列索引为0）由高到低排序#}
                 pageLength: 25, // 前端分页，初始每页显示25条记录
                 autoWidth: false, // 不自动调整表格宽度
                 oLanguage: { // UI Label本地化
@@ -166,37 +174,38 @@
                         "sLast": "末页"
                     },
                 },
-                columnDefs:[
-                    {
-                        "targets": 6, // 指定第7列EI
-                        "createdCell": function (td, cellData, rowData, row, col) {
-                            if (cellData < 100) {
-                                $(td).css('color', 'red')
-                            } else if (cellData > 100) {
-                                $(td).css('color', 'green')
-                            } else if (cellData.indexOf(",") !== -1) {
-                                $(td).css('color', 'green')
-                            }
-                        }
-                    },
-                    {
-                        "targets": [2, 4, 5], // 指定第3,5,6列绝对值变化，份额获取，增长率，这些有可能出现负数
-                        "createdCell": function (td, cellData, rowData, row, col) {
-                            if (cellData.startsWith('-')) { // 因为涉及到百分数的问题，这里用检查字符串的方法而不是<0的方法判断负数
-                                $(td).css('color', 'red')
-                            }
-                        }
-                    },
-                    {"width": "10%", "targets": 3}, // 保持第4列份额列宽度固定，使条形图更美观
-                    {
-                        targets: 3,
-                        render: $.fn.dataTable.render.percentBar('square', '#000', '#BCBCBC', '#00bfff', '#E6E6E6', 1, 'ridge') // 根据一定的色彩方案初始化条形图
-                    },
-                ]
+                {#columnDefs:[#}
+                {#    {#}
+                {#        "targets": 6, // 指定第7列EI#}
+                {#        "createdCell": function (td, cellData, rowData, row, col) {#}
+                {#            if (cellData < 100) {#}
+                {#                $(td).css('color', 'red')#}
+                {#            } else if (cellData > 100) {#}
+                {#                $(td).css('color', 'green')#}
+                {#            } else if (cellData.indexOf(",") !== -1) {#}
+                {#                $(td).css('color', 'green')#}
+                {#            }#}
+                {#        }#}
+                {#    },#}
+                {#    {#}
+                {#        "targets": [2, 4, 5], // 指定第3,5,6列绝对值变化，份额获取，增长率，这些有可能出现负数#}
+                {#        "createdCell": function (td, cellData, rowData, row, col) {#}
+                {#            if (cellData.startsWith('-')) { // 因为涉及到百分数的问题，这里用检查字符串的方法而不是<0的方法判断负数#}
+                {#                $(td).css('color', 'red')#}
+                {#            }#}
+                {#        }#}
+                {#    },#}
+                {#    {"width": "10%", "targets": 3}, // 保持第4列份额列宽度固定，使条形图更美观#}
+                {#    {#}
+                {#        targets: 3,#}
+                {#        render: $.fn.dataTable.render.percentBar('square', '#000', '#BCBCBC', '#00bfff', '#E6E6E6', 1, 'ridge') // 根据一定的色彩方案初始化条形图#}
+                {#    },#}
+                {#]#}
             }
         );
     }
 </script>
+
 {#获取前端选择的表单结果，即用户选择了哪些数据#}
 <script>
     function getForm(){

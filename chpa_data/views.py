@@ -17,13 +17,13 @@ except ImportError:
     from io import StringIO as IO # for legacy python
 import datetime
 import xlsxwriter
-from django.views.decorators.cache import cache_page
 from django.contrib.auth.decorators import login_required
 ENGINE = create_engine('mysql+pymysql://root:lwydecd+20@localhost:3306/test') #创建数据库连接引擎
 # 根据用户传进来的数据创建的表
-DB_TABLE='example'
+DB_TABLE=''
 column=''
 index=''
+value=''
 
 # 此函数初始化界面，然后用户点击导入按钮后自动生成可选条件，让用户选择
 def index01(request):
@@ -138,6 +138,7 @@ def get_df(form_dict, is_pivoted=True):
         column=delesig(dimension_selected)
         global index
         index=delesig(index_selected)
+        global value
         value=delesig(value_selected)
         pivoted = pd.pivot_table(df,
                                  values=value,#'AMOUNT',  # 数据透视汇总值为AMOUNT字段，一般保持不变
@@ -151,7 +152,6 @@ def get_df(form_dict, is_pivoted=True):
     else:
         return df
 @login_required
-@cache_page(60 * 60 * 24 * 30) #  缓存30天
 # query函数在前端选择了筛选条件之后通过前端传递过来的值进行分析，并返回json格式的结果
 # 1.解析前端参数到理想格式
 # 2.根据前端参数数据拼接SQL并用Pandas
@@ -165,28 +165,30 @@ def query(request):
     pivoted = get_df(form_dict)
     df=get_df(form_dict,is_pivoted=False)
     # KPI
-    kpi = get_kpi(pivoted)
+    # kpi = get_kpi(pivoted)
 
-    table = ptable(pivoted)
-    table = table.to_html(formatters=build_formatters_by_col(table),  # 逐列调整表格内数字格式
+    # table = ptable(pivoted)
+    table = pivoted.to_html(#formatters=build_formatters_by_col(pivoted),  # 逐列调整表格内数字格式
                           classes='ui selectable celled table',  # 指定表格css class为Semantic UI主题
                           table_id='ptable'  # 指定表格id
                           )
 
     # Pyecharts交互图表
-    bar_total_trend = json.loads(prepare_chart(pivoted, 'bar_total_trend', form_dict,column))
+    # bar_total_trend = json.loads(prepare_chart(pivoted, 'bar_total_trend', index,column))
+
     #describe函数转为图表
     info_chart=json.loads(prepare_chart(df, 'get_info_chart', index,column))
+
     # Matplotlib静态图表
-    # bubble_performance = prepare_chart(pivoted, 'bubble_performance', form_dict)
+    bubble_performance = prepare_chart(pivoted, 'get_pivot_chart', index,column)
     context = {
-        "market_size": kpi["market_size"],
-        "market_gr": kpi["market_gr"],
-        "market_cagr": kpi["market_cagr"],
-        'ptable': table,
-        'bar_total_trend': bar_total_trend,
+        # "market_size": kpi["market_size"],
+        # "market_gr": kpi["market_gr"],
+        # "market_cagr": kpi["market_cagr"],
+        'ptable':table,
+        # 'bar_total_trend': bar_total_trend,
         'info_chart':info_chart,
-        # 'bubble_performance': bubble_performance
+        'bubble_performance': bubble_performance
     }
 
     return HttpResponse(json.dumps(context, ensure_ascii=False), content_type="application/json charset=utf-8") # 返回结果必须是json格式
@@ -262,7 +264,8 @@ def ptable(df):
                            '份额同比变化',
                            '同比增长率',
                            'EI']
-
+    print('表的类型为：')
+    print(type(df_combined))
     return df_combined
 # 下面是一个获得各个字段option_list的简单方法,在页面初始化时从后端提取所有字段的不重复值作为选项传入前端。
 def get_distinct_list(column, db_table):
@@ -382,10 +385,12 @@ def prepare_chart(df,  # 输入经过pivoted方法透视过的df，不是原始d
     elif chart_type=='get_info_chart':#渲染df.describe的出来的表格
         chart=creat_info_chart(df,index,column)
         return chart.dump_options()  # 用json格式返回Pyecharts图表对象的全局设置
+    elif chart_type=='get_pivot_chart':
+        chart=creat_pivot_chart(df)
+        return chart
     else:
         return None
 @login_required
-@cache_page(60 * 60 * 24 * 30)
 # 导出数据函数
 def export(request, type):
     form_dict = dict(six.iterlists(request.GET))

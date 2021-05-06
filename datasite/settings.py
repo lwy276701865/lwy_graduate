@@ -133,13 +133,5 @@ STATICFILES_DIRS = (
     os.path.join(BASE_DIR, "static"),
 )  # 该语句建议保留，对低版本的Django也是指明静态文件的位置，后续版本有功能改变
 
-CACHES = {
-    'default': {
-        # dummy仅仅实现了缓存的接口而不做任何实际的事情，可以在不修改缓存代码的情况下正常开发测试。
-        'BACKEND': 'django.core.cache.backends.dummy.DummyCache',
-        # 'BACKEND': 'django.core.cache.backends.filebased.FileBasedCache',
-        'LOCATION': 'D:/foo/bar', # 缓存文件存放文件夹，需要有读写权限
-    }
-}
 LOGIN_REDIRECT_URL = '/chpa/index'
 LOGOUT_REDIRECT_URL = '/accounts/login'

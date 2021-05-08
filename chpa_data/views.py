@@ -2,7 +2,6 @@ import json
 from django.http import HttpResponseRedirect
 import os
 from django.shortcuts import render
-# Create your views here.
 from django.http import HttpResponse
 from pymysql import connect
 from sqlalchemy import create_engine
@@ -10,6 +9,7 @@ import sqlalchemy as sa
 import pandas as pd
 import numpy as np
 import six
+import codecs
 from .charts import *
 try:
     from io import BytesIO as IO # for modern python
@@ -25,22 +25,11 @@ column=''
 index=''
 value=''
 
-# 此函数初始化界面，然后用户点击导入按钮后自动生成可选条件，让用户选择
-def index01(request):
-    mselect_dict = {}
-    for key, value in D_MULTI_SELECT.items():
-        #mselect_dict的key为D_MULTI_SELECT的key
-        # mselect_dict的value为字典，具有select和options两个字段
-        mselect_dict[key] = {}
-        # value的select字段表示选择了数据库中的哪个属性
-        mselect_dict[key]['select'] = value
-        # value的options字段表示数据库中该属性具有的各不相同的取值
-        option_list=get_distinct_list(value,DB_TABLE)
-        mselect_dict[key]['options'] = option_list  #以后可以后端通过列表为每个多选控件传递备选项
-    context = {
-        'mselect_dict': mselect_dict
-    }
-    return render(request, 'chpa_data/display.html', context)
+
+# 此函数根据用户导入的文件来动态初始化界面
+# 1.获取用户导入的文件
+# 2.将文件以utf-8的编码形式写入新文件
+# 3.以新文件来生成对应的mysql数据库，并将相关数据传至前端，初始化界面
 @login_required
 def index(request):
     if request.method == 'GET':
@@ -50,13 +39,26 @@ def index(request):
         if not content:
             return render(request,  'chpa_data/display.html', {'message': '没有上传内容'})
         position = os.path.join('./upload',content.name)
+        newfile=position[0:position.rfind('.')]+'toUTF-8.csv'
         #获取上传文件的文件名，并将其存储到指定位置
+        # wb+:以二进制格式打开一个文件用于读写。如果该文件已存在则打开文件，并从开头开始编辑，即原有内容会被删除。
+        # 如果该文件不存在，创建新文件。一般用于非文本文件如图片等。
         storage = open(position,'wb+')       #打开存储文件
         for chunk in content.chunks():       #分块写入文件
             storage.write(chunk)
         storage.close()
-        file_path = position
-        tablename = '`'+os.path.split(file_path)[-1].split('.')[0] + '`'
+        #rb+:以二进制格式打开一个文件用于读写。文件指针将会放在文件的开头。一般用于非文本文件如图片等。
+        f=open(position,'rb+')
+        content_type=f.read()#读取文件内容，content为bytes类型，而非string类型
+        source_encoding=get_file_code(content_type)
+        # r:以只读方式打开文件。文件的指针将会放在文件的开头。这是默认模式。
+        with codecs.open(position, "r",source_encoding) as f:
+            newcontent=f.read()
+        # wb:以二进制格式打开一个文件只用于写入。如果该文件已存在则打开文件，并从开头开始编辑，即原有内容会被删除。
+        # 如果该文件不存在，创建新文件。一般用于非文本文件如图片等。
+        with codecs.open(newfile, "wb") as f:
+            f.write(newcontent.encode(encoding='utf-8', errors="ignore"))
+        file_path = newfile
         global DB_TABLE
         DB_TABLE = '`'+os.path.split(file_path)[-1].split('.')[0] + '`'
         hostname = '127.0.0.1'
@@ -69,51 +71,26 @@ def index(request):
 
         sql='select column_name,data_type from information_schema.columns where table_name={} '.format(DB_TABLE.replace('`',"'"))
         df=pd.read_sql_query(sql,ENGINE)
-        # print(df.loc[0])
-        # print(df.iloc[:,0].size)#行数
         # 筛选条件字典
         print("获取表的字段及其数据类型：")
         print(df)
-        D_screen_condition=dict(zip(df['COLUMN_NAME'],'`'+df['COLUMN_NAME']+'`'))
-        #传给前端value选择的备选值,因为value只能选择数值类型的数据,选择字符数据没有意义
-        df2=df[df['DATA_TYPE'].isin(['int','float'])]
-        D_screen_condition2VALUE=dict(zip(df2['COLUMN_NAME'],'`'+df2['COLUMN_NAME']+'`'))
-        print("index/column备选项为:")
-        print(D_screen_condition)
-        print("value备选项为:")
-        print(D_screen_condition2VALUE)
-        # 下面的代码负责初始化表单选项(index和column)
-        mselect_dict = {}
-        for key, value in D_screen_condition.items():
-            #D_MULTI_SELECT
-            #mselect_dict的key为D_screen_condition的key
-            # mselect_dict的value为字典，具有select和options两个字段
-            mselect_dict[key] = {}
 
-            # value的select字段表示选择了数据库中的哪个属性
-            mselect_dict[key]['select'] = value
+        mselect_dict,mselect_dict_value=init_html_form(df)
 
-            # value的options字段表示数据库中该属性具有的各不相同的取值
-            option_list=get_distinct_list(value,DB_TABLE)
-            mselect_dict[key]['options'] = option_list  #以后可以后端通过列表为每个多选控件传递备选项
-            # 下面单独初始化value备选框
-        mselect_dict_value={}
-        for key, value in D_screen_condition2VALUE.items():
-            #D_MULTI_SELECT
-            #mselect_dict的key为D_screen_condition的key
-            # mselect_dict的value为字典，具有select和options两个字段
-            mselect_dict_value[key] = {}
-
-            # value的select字段表示选择了数据库中的哪个属性
-            mselect_dict_value[key]['select'] = value
-
-            # value的options字段表示数据库中该属性具有的各不相同的取值
-            option_list=get_distinct_list(value,DB_TABLE)
-            mselect_dict_value[key]['options'] = option_list  #以后可以后端通过列表为每个多选控件传递备选项
+        # 初始化方法选择框
+        aggfunc_select={
+            '求和':'sum',
+            '统计个数':'count',
+            '求平均值':'mean',
+            '求标准差':'std',
+            '求方差':'var',
+            '求中位数':'median'
+        }
         context = {
             'mselect_dict':mselect_dict,
             'mselect_dict_value':mselect_dict_value,
-            'message': '上传成功'
+            'message': '上传成功',
+            'aggfunc_select':aggfunc_select
         }
         return render(request,  'chpa_data/display.html',context)      #返回客户端信息
     else:
@@ -342,6 +319,7 @@ D_TRANS = {
     '最小制剂单位数': 'Volume (Counting Unit)'
 }
 
+# 可视化数据，渲染图表
 def prepare_chart(df,  # 输入经过pivoted方法透视过的df，不是原始df
                   chart_type,  # 图表类型字符串，人为设置，根据图表类型不同做不同的Pandas数据处理，及生成不同的Pyechart对象
                   index,  # 前端表单字典，用来获得一些变量作为图表的标签如单位
@@ -479,3 +457,71 @@ class CsvToMysql(object):
             print (e.message)
         finally:
             self.conn.commit()
+
+
+# 在python中，Unicode类型是作为编码的基础类型
+#       decode                 encode
+# str ---------> str(Unicode) ---------> str
+# 得到文件的编码方式，方便读取文件时选择对应的编码方式
+def get_file_code(content_type):
+    try:
+        content_type.decode('utf-8').encode('utf-8')
+        source_encoding='utf-8'
+    except:
+        try:
+            content_type.decode('gbk').encode('utf-8')
+            source_encoding='gbk'
+        except:
+            try:
+                content_type.decode('gb2312').encode('utf-8')
+                source_encoding='gb2312'
+            except:
+                try:
+                    content_type.decode('gb18030').encode('utf-8')
+                    source_encoding='gb18030'
+                except:
+                    try:
+                        content_type.decode('big5').encode('utf-8')
+                        source_encoding='gb18030'
+                    except:
+                        content_type.decode('cp936').encode('utf-8')
+                        source_encoding='cp936'
+    return source_encoding
+def init_html_form(df):
+    D_screen_condition=dict(zip(df['COLUMN_NAME'],'`'+df['COLUMN_NAME']+'`'))
+    #传给前端value选择的备选值,因为value只能选择数值类型的数据,选择字符数据没有意义
+    df2=df[df['DATA_TYPE'].isin(['int','float'])]
+    D_screen_condition2VALUE=dict(zip(df2['COLUMN_NAME'],'`'+df2['COLUMN_NAME']+'`'))
+    print("index/column备选项为:")
+    print(D_screen_condition)
+    print("value备选项为:")
+    print(D_screen_condition2VALUE)
+    # 下面的代码负责初始化表单选项(index和column)
+    mselect_dict = {}
+    for key, value in D_screen_condition.items():
+        #D_MULTI_SELECT
+        #mselect_dict的key为D_screen_condition的key
+        # mselect_dict的value为字典，具有select和options两个字段
+        mselect_dict[key] = {}
+
+        # value的select字段表示选择了数据库中的哪个属性
+        mselect_dict[key]['select'] = value
+
+        # value的options字段表示数据库中该属性具有的各不相同的取值
+        option_list=get_distinct_list(value,DB_TABLE)
+        mselect_dict[key]['options'] = option_list  #以后可以后端通过列表为每个多选控件传递备选项
+        # 下面单独初始化value备选框
+    mselect_dict_value={}
+    for key, value in D_screen_condition2VALUE.items():
+        #D_MULTI_SELECT
+        #mselect_dict的key为D_screen_condition的key
+        # mselect_dict的value为字典，具有select和options两个字段
+        mselect_dict_value[key] = {}
+
+        # value的select字段表示选择了数据库中的哪个属性
+        mselect_dict_value[key]['select'] = value
+
+        # value的options字段表示数据库中该属性具有的各不相同的取值
+        option_list=get_distinct_list(value,DB_TABLE)
+        mselect_dict_value[key]['options'] = option_list  #以后可以后端通过列表为每个多选控件传递备选项
+    return mselect_dict,mselect_dict_value

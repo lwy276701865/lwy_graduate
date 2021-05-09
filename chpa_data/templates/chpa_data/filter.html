@@ -16,10 +16,7 @@
                     <div class="sixteen wide field">
                         <h4>选择index</h4>
                         <select name="INDEX_select" id="INDEX_select" class="ui fluid search dropdown" >
-                            {#                            <option value="Value" selected>金额</option>#}
-                            {#                            <option value="Volume">盒数</option>#}
-                            {#                            <option value="Volume (Counting Unit)">最小制剂单位数</option>#}
-                            <option value="" style="display: none"></option>
+                          <option value="" style="display: none"></option>
 {#                            <option value="0">请选择</option>#}
                             {% for key, value in mselect_dict.items %}
                                 <option value="{{ value.select }}">{{ key }}</option>
@@ -51,6 +48,19 @@
 {#                            <option value="0">请选择</option>#}
                             {% for key, value in mselect_dict_value.items %}
                                 <option value="{{ value.select }}">{{ key }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                </div>
+
+                {#                选择aggfunc#}
+                <div class="fields">
+                    <div class="sixteen wide field">
+                        <h4>选择运算方法</h4>
+                        <select name="AGGFUNC_select" id="AGGFUNC_select" class="ui fluid search dropdown" >
+                            <option value="" style="display: none"></option>
+                            {% for key, value in aggfunc_select.items %}
+                                <option value="{{ value }}">{{ key }}</option>
                             {% endfor %}
                         </select>
                     </div>
@@ -96,7 +106,8 @@
             var form_data = getForm()
         if(form_data['DIMENSION_select']==''||
             form_data['VALUE_select']==''||
-            form_data['INDEX_select']=='')
+            form_data['INDEX_select']==''||
+            form_data['AGGFUNC_select']=='')
         {
             alert('维度不允许取空值')
             return false;
@@ -108,10 +119,12 @@
                 alert('维度不允许取重复值')
                return false;
             }
+
         var dimmer = $("#dimmer");
         dimmer.attr('class', 'ui active dimmer'); // 点击筛选按钮后dimmer变成active
         dimmer.children('div').remove(); // 删除初始化文字
         dimmer.append('<div class="ui text loader">数据加载中……</div>'); // 增加loading效果和文字
+
             // Pyecharts图表初始化
             {#var chart = echarts.init(document.getElementById('bar_total_trend'), 'white', {renderer: 'canvas'});#}
             {#chart.showLoading({#}
@@ -132,17 +145,23 @@
             data: form_data,
             // 回调函数，其中ret是返回的JSON，可以以字典的方式调用
             success: function (ret) {     //成功执行
+                {# 初始化透视表格 #}
                 $("#result_table").html(ret['ptable']);//这个ptable是后端query函数传过来的ptable
                 initTable($("#ptable")) // 为id为ptable的DOM表格初始化DataTables，即上一行刚刚修改了DOM元素的那个
+
+                {# 初始化原数据表格 #}
+                $("#initdata_result_table").html(ret['initdata_table']);
+                initTable($("#initdata_table"))
 
                 // 去除加载遮罩（去掉active）
                 dimmer.attr('class', 'ui dimmer');
 
-                // 展示Pyecharts整体市场柱状组合图
+
                 {#chart.clear();#}
                 {#chart.setOption(ret['bar_total_trend']);#}
                 {#chart.hideLoading()#}
 
+                // 展示Pyecharts图
                 info_chart.clear();
                 info_chart.setOption(ret['info_chart']);
                 info_chart.hideLoading()
@@ -238,6 +257,7 @@
             "DIMENSION_select": $("#DIMENSION_select").val(),
             "VALUE_select": $("#VALUE_select").val(),
             "INDEX_select": $("#INDEX_select").val(),
+            "AGGFUNC_select":$("#AGGFUNC_select").val()
         };
 
         // 获取多选下拉框的值（index和column）

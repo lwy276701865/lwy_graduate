@@ -9,6 +9,7 @@ from adjustText import adjust_text
 from io import BytesIO
 import base64
 import scipy.stats as stats
+import seaborn as sns
 
 myfont = fm.FontProperties(fname='C:/Windows/Fonts/msyh.ttc')
 
@@ -239,9 +240,9 @@ def creat_info_chart(df,index,column):
             .set_global_opts(
             toolbox_opts=opts.ToolboxOpts(),
             tooltip_opts=opts.TooltipOpts(trigger="axis", axis_pointer_type="cross"),
-            title_opts=opts.TitleOpts(title="index分布情况"),
+            title_opts=opts.TitleOpts(title="column分布情况"),
             legend_opts=opts.LegendOpts(pos_left="65%"),
-            yaxis_opts=opts.AxisOpts(name="容量"),
+            yaxis_opts=opts.AxisOpts(name="Count"),
             xaxis_opts=opts.AxisOpts(name=index),
         )
     )
@@ -250,11 +251,11 @@ def creat_info_chart(df,index,column):
             .add_xaxis(list(df[column].value_counts().index))
             .add_yaxis(column+"个数",df[column].value_counts().values.tolist())
             .set_global_opts(
-            title_opts=opts.TitleOpts(title="column分布情况",pos_left="50%"),
+            title_opts=opts.TitleOpts(title="index分布情况",pos_left="50%"),
             toolbox_opts=opts.ToolboxOpts(),
             tooltip_opts=opts.TooltipOpts(trigger="axis", axis_pointer_type="cross"),
             legend_opts=opts.LegendOpts(pos_left="25%"),
-            yaxis_opts=opts.AxisOpts(name="容量"),
+            yaxis_opts=opts.AxisOpts(name="Count"),
             xaxis_opts=opts.AxisOpts(name=column),
         )
     )
@@ -271,9 +272,9 @@ def creat_info_chart(df,index,column):
         )
     line.set_global_opts(
         toolbox_opts=opts.ToolboxOpts(),
-        title_opts=opts.TitleOpts(title="原数据基本信息图表",pos_top="50%"),
+        title_opts=opts.TitleOpts(title="原数据基本信息图",pos_top="50%"),
         tooltip_opts=opts.TooltipOpts(trigger="axis", axis_pointer_type="cross"),
-        legend_opts=opts.LegendOpts(pos_top="50%"),
+        legend_opts=opts.LegendOpts(pos_top="55%"),
         yaxis_opts=opts.AxisOpts(
             type_="category",
             axistick_opts=opts.AxisTickOpts(is_show=True),
@@ -289,13 +290,31 @@ def creat_info_chart(df,index,column):
 
     )
     return grid
-def creat_pivot_chart(df):
+def creat_pivot_chart(df,column,value):
+    index_len=len(df.index)
+    # column
     df.plot(kind='bar')
     # plt.rcParams['font.family']=['STFangsong']
     # 直接通过修改font.sans-serif 参数改变绘图时的字体
     plt.rcParams['font.sans-serif'] = ['SimHei']
+    plt.ylabel(value)
+    plt.legend(frameon=False,ncol=3,title=column,
+               bbox_to_anchor=(1.05, 1), loc=3, borderaxespad=0) #去掉图例边框
+    plt.xticks(range(0,index_len,1),df.index.tolist(),rotation=270)
+    ax=plt.gca()
+    ax.spines['top'].set_visible(False)
+    ax.spines['right'].set_visible(False)
+    ax.tick_params(bottom=False)#隐藏x轴刻度线
+    # for label in ax.get_xticklabels():
+    #     label.set_visible(False)
+    # for label in ax.get_xticklabels()[::3]:
+    #     label.set_visible(True)
+    # plt.figure(figsize=(20, 2))
+    # 解决ticklabel字重叠：
+    # ax = sns.countplot(x="downNetwork", data=offline_data_shuffle)
+    # ax.set_xticklabels(ax.get_xticklabels(), rotation=40, ha="right")
+    plt.tight_layout()
     # 保存到字符串
-
     sio = BytesIO()
     plt.savefig(sio, format='png', bbox_inches='tight', transparent=True, dpi=600)
     data = base64.encodebytes(sio.getvalue()).decode()  # 解码为base64编码的png图片数据

@@ -24,7 +24,7 @@ DB_TABLE=''
 column=''
 index=''
 value=''
-
+aggfunc=''
 
 # 此函数根据用户导入的文件来动态初始化界面
 # 1.获取用户导入的文件
@@ -50,7 +50,10 @@ def index(request):
         #rb+:以二进制格式打开一个文件用于读写。文件指针将会放在文件的开头。一般用于非文本文件如图片等。
         f=open(position,'rb+')
         content_type=f.read()#读取文件内容，content为bytes类型，而非string类型
+
+        # 获取文件编码方式
         source_encoding=get_file_code(content_type)
+
         # r:以只读方式打开文件。文件的指针将会放在文件的开头。这是默认模式。
         with codecs.open(position, "r",source_encoding) as f:
             newcontent=f.read()
@@ -59,13 +62,16 @@ def index(request):
         with codecs.open(newfile, "wb") as f:
             f.write(newcontent.encode(encoding='utf-8', errors="ignore"))
         file_path = newfile
+
         global DB_TABLE
+        # 根据用户导入的文件名选择最后一个X.csv的X为表名,并加上``符号
         DB_TABLE = '`'+os.path.split(file_path)[-1].split('.')[0] + '`'
         hostname = '127.0.0.1'
         port = 3306
         user = 'root'
         passwd = 'lwydecd+20'
         db = 'test'
+
         M = CsvToMysql(hostname=hostname, port=port, user=user, passwd=passwd, db=db)
         M.read_csv(file_path)
 
@@ -75,6 +81,7 @@ def index(request):
         print("获取表的字段及其数据类型：")
         print(df)
 
+        # 初始化前端选项
         mselect_dict,mselect_dict_value=init_html_form(df)
 
         # 初始化方法选择框
@@ -107,24 +114,27 @@ def get_df(form_dict, is_pivoted=True):
     sql = sqlparse(form_dict)  # sql拼接
     df = pd.read_sql_query(sa.text(sql), ENGINE)  # 将sql语句结果读取至Pandas Dataframe
     print("构造出来的sql语句为"+sql)
+
+    # 前端维度的选择用在透视函数的参数，数据筛选的选择用于生成df
     if is_pivoted is True:
         dimension_selected = form_dict['DIMENSION_select'][0]
         index_selected = form_dict['INDEX_select'][0]
         value_selected = form_dict['VALUE_select'][0]
+        aggfunc_selected=form_dict['AGGFUNC_select'][0]
         global column
         column=delesig(dimension_selected)
         global index
         index=delesig(index_selected)
         global value
         value=delesig(value_selected)
+        global aggfunc
+        aggfunc=delesig(aggfunc_selected)
         pivoted = pd.pivot_table(df,
-                                 values=value,#'AMOUNT',  # 数据透视汇总值为AMOUNT字段，一般保持不变
-                                 index=index,#'DATE',  # 数据透视行为DATE字段，一般保持不变
-                                 columns=column,  # 数据透视列为前端选择的分析维度
-                                 aggfunc=np.sum)  # 数据透视汇总方式为求和，一般保持不变
-        if pivoted.empty is False:
-            pivoted.sort_values(by=pivoted.index[-1], axis=1, ascending=False, inplace=True)  # 结果按照最后一个DATE表现排序
-
+                                 values=value,
+                                 index=index,
+                                 columns=column,
+                                 aggfunc=aggfunc)
+        pivoted.dropna(axis=0,how='all')
         return pivoted
     else:
         return df
@@ -145,24 +155,30 @@ def query(request):
     # kpi = get_kpi(pivoted)
 
     # table = ptable(pivoted)
+    # 透视表格
     table = pivoted.to_html(#formatters=build_formatters_by_col(pivoted),  # 逐列调整表格内数字格式
                           classes='ui selectable celled table',  # 指定表格css class为Semantic UI主题
                           table_id='ptable'  # 指定表格id
                           )
-
+    # 原数据表格
+    inittable = df.to_html(#formatters=build_formatters_by_col(pivoted),  # 逐列调整表格内数字格式
+        classes='ui selectable celled table',  # 指定表格css class为Semantic UI主题
+        table_id='initdata_table'  # 指定表格id
+    )
     # Pyecharts交互图表
     # bar_total_trend = json.loads(prepare_chart(pivoted, 'bar_total_trend', index,column))
 
-    #describe函数转为图表
+    #describe和valuecounts函数转为图表
     info_chart=json.loads(prepare_chart(df, 'get_info_chart', index,column))
 
     # Matplotlib静态图表
-    bubble_performance = prepare_chart(pivoted, 'get_pivot_chart', index,column)
+    bubble_performance = prepare_chart(pivoted, 'get_pivot_chart',column,value)
     context = {
         # "market_size": kpi["market_size"],
         # "market_gr": kpi["market_gr"],
         # "market_cagr": kpi["market_cagr"],
         'ptable':table,
+        "initdata_table":inittable,
         # 'bar_total_trend': bar_total_trend,
         'info_chart':info_chart,
         'bubble_performance': bubble_performance
@@ -256,7 +272,7 @@ def sqlparse(context):
 
     # 下面循环处理多选部分（即数据筛选部分）
     for k, v in context.items():
-        if k not in ['csrfmiddlewaretoken', 'DIMENSION_select', 'VALUE_select', 'INDEX_select']:
+        if k not in ['csrfmiddlewaretoken', 'DIMENSION_select', 'VALUE_select', 'INDEX_select','AGGFUNC_select']:
             if k[-2:] == '[]':
                 field_name = k[:-9]  # 如果键以[]结尾，删除_select[]取原字段名
             else:
@@ -275,6 +291,7 @@ def sql_extent(sql, field_name, selected, operator=" AND "):
         if statement != '':
             sql = sql + operator + field_name + " in (" + statement + ")"
     return sql
+
 # 该字典key为前端准备显示的所有多选字段名, value为数据库对应的字段名
 D_MULTI_SELECT = {
     'TC I': '`TC I`',
@@ -289,6 +306,7 @@ D_MULTI_SELECT = {
     '剂型': 'FORMULATION',
     '剂量': 'STRENGTH'
 }
+
 # 该函数用来格式化表格的数据，用到query函数里的table属性里面
 def build_formatters_by_col(df):
     format_abs = lambda x: '{:,.0f}'.format(x)
@@ -323,10 +341,9 @@ D_TRANS = {
 def prepare_chart(df,  # 输入经过pivoted方法透视过的df，不是原始df
                   chart_type,  # 图表类型字符串，人为设置，根据图表类型不同做不同的Pandas数据处理，及生成不同的Pyechart对象
                   index,  # 前端表单字典，用来获得一些变量作为图表的标签如单位
-                  column
-                  ):
-    label ='MATVALUE'
+                  column):
 
+    label ='MATVALUE'
     if chart_type == 'bar_total_trend':
         df_abs = df.sum(axis=1)  # Pandas列汇总，返回一个N行1列的series，每行是一个date的市场综合
         # df_abs.index = df_abs.index.strftime("%Y-%m")
@@ -364,7 +381,7 @@ def prepare_chart(df,  # 输入经过pivoted方法透视过的df，不是原始d
         chart=creat_info_chart(df,index,column)
         return chart.dump_options()  # 用json格式返回Pyecharts图表对象的全局设置
     elif chart_type=='get_pivot_chart':
-        chart=creat_pivot_chart(df)
+        chart=creat_pivot_chart(df,index,column)
         return chart
     else:
         return None
@@ -397,7 +414,8 @@ def export(request, type):
     now = datetime.datetime.now().strftime("%Y%m%d%H%M%S")  # 当前精确时间不会重复，适合用来命名默认导出文件
     response['Content-Disposition'] = 'attachment; filename=' + now + '.xlsx'
     return response
-# 读取用户导入的csv文件并将其存入mysql数据库
+
+# 读取用户导入的csv文件并将其存入mysql数据库(数据清洗也在这里)
 class CsvToMysql(object):
     def __init__(self, hostname, port, user, passwd, db):
         self.dbname = db
@@ -409,9 +427,8 @@ class CsvToMysql(object):
         # csv文件中的字段可能会有空，在读取的时候会变成nan，nan到了mysql中是没有办法处理的就会报错，
         # 所以需要加上这个keep_default_na=False，设为false后就会保留原空字符，就不会变成nan了
         df = pd.read_csv(filename, keep_default_na=False, encoding='utf-8')
-        # 根据用户导入的文件名选择最后一个X.csv的X为表名,并加上``符号
         table_name = '`'+os.path.split(filename)[-1].split('.')[0] + '`'
-        # print("111111111111111111111111111111111111111111111111")
+        # print("下列语句测试构造出来的表名是否正确")
         # print(os.path.split(filename))
         # print(os.path.split(filename)[-1])
         # print(os.path.split(filename)[-1].split('.'))
@@ -487,6 +504,8 @@ def get_file_code(content_type):
                         content_type.decode('cp936').encode('utf-8')
                         source_encoding='cp936'
     return source_encoding
+
+# 初始化前端表单
 def init_html_form(df):
     D_screen_condition=dict(zip(df['COLUMN_NAME'],'`'+df['COLUMN_NAME']+'`'))
     #传给前端value选择的备选值,因为value只能选择数值类型的数据,选择字符数据没有意义

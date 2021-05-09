@@ -9,18 +9,18 @@
     <!-- 创建4个Semantic UI tab，根据鼠标点击切换，以保证页面干净清爽 -->
     <div class="ui pointing secondary menu">
         <a class="item" data-tab="competition"><i class="trophy icon"></i>数据基本信息</a>
+        <a class="item" data-tab="bubble_performance"><i class="braille icon"></i>原数据表格</a>
         <a class="item active" data-tab="total"><i class="circle icon"></i>数据透视</a>
-        <a class="item" data-tab="bubble_performance"><i class="braille icon"></i>暂时无内容</a>
         <a class="item" data-tab="export"><i class="download icon"></i>导出数据</a>
     </div>
 
-    {#    第一个tab，应该放置三个pyecharts图表，即index和column分类统计图；describe图表#}
+    {#    第一个tab，放置三个pyecharts图表，即index和column分类统计图；describe图表#}
     <div class="ui tab segment" data-tab="competition">
         {#        pyecharts图表#}
         <h3 class="ui header">
             <div class="content">
                 数据基本信息概览
-                <div class="sub header">柱状折线复合图</div>
+                <div class="sub header">柱状图/折线图</div>
             </div>
         </h3>
         <div class="ui divider"></div>
@@ -29,13 +29,34 @@
         </div>
     </div>
 
-    {#    第二个tab，放了静态图表和表格。就是数据透视表和它的chart形式#}
+    {#    第二个tab，原数据表格#}
+    <div class="ui tab segment" data-tab="bubble_performance">
+        {#        原数据表格#}
+        <h3 class="ui header">
+            <div class="content">
+                原数据展示
+            </div>
+        </h3>
+        <div class="ui divider"></div>
+        <div class="ui top attached button" tabindex="0"
+             onclick="selectElementContents( document.getElementById('initdata_table') );"
+             data-content="复制成功" data-position="bottom center">
+            <i class="copy icon"></i>
+            复制到剪贴板
+        </div>
+        <div class="ui hidden divider"></div>
+        <div class="ui container" id='initdata_result_table' style="width: 100%; overflow-x: scroll; overflow-y: hidden;">
+            <!-- Django渲染html代码时需要加入|safe，保证html不会被自动转义 -->
+            {{ initdata_table|safe }}
+        </div>
+    </div>
+
+    {#    第三个tab，放了静态图表和透视表格。就是数据透视表和它的chart形式#}
     <div class="ui tab segment active" data-tab="total">
         {#    静态图表#}
         <h3 class="ui header">
             <div class="content">
-                规模 versus 增长
-                <div class="sub header">带线性拟合的气泡图</div>
+                数据透视图
             </div>
         </h3>
         <div class="ui divider"></div>
@@ -43,11 +64,10 @@
             <img id="bubble_performance" style="width: 100%" alt="" />
         </div>
 
-        {#        表格#}
+        {#        透视表格#}
         <h3 class="ui header">
             <div class="content">
-                最新横断面KPI一览
-                <div class="sub header">数据表格</div>
+                数据透视表
             </div>
         </h3>
         <div class="ui divider"></div>
@@ -62,21 +82,6 @@
             <!-- Django渲染html代码时需要加入|safe，保证html不会被自动转义 -->
             {{ ptable|safe }}
         </div>
-    </div>
-
-    {#    第三个tab，暂时没有东西#}
-    <div class="ui tab segment" data-tab="bubble_performance">
-        {#        pyecharts图表#}
-        {#        <h3 class="ui header">#}
-        {#            <div class="content">#}
-        {#                定义市场总量趋势#}
-        {#                <div class="sub header">柱状折线复合图</div>#}
-        {#            </div>#}
-        {#        </h3>#}
-        {#        <div class="ui divider"></div>#}
-        {#        <div class="ui container">#}
-        {#            <div id="bar_total_trend" style="width:1000px; height:600px;"></div>#}
-        {#        </div>#}
     </div>
 
     {#    第四个tab，导出数据#}
@@ -118,6 +123,7 @@
             document.execCommand("Copy");
         }
     </script>
+
     <script>
         // 按钮点击后有弹出文本，显示data-content内容“复制成功”
         $('.ui.top.attached.button')

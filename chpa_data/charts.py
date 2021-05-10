@@ -10,7 +10,8 @@ from io import BytesIO
 import base64
 import scipy.stats as stats
 import seaborn as sns
-
+import matplotlib.style as mplstyle
+from eplot import eplot
 myfont = fm.FontProperties(fname='C:/Windows/Fonts/msyh.ttc')
 
 def mpl_bubble(x, y, z, labels, title, x_title, y_title,
@@ -236,26 +237,27 @@ def creat_info_chart(df,index,column):
     bar=(
         Bar()
             .add_xaxis(list(df[index].value_counts().index))
-            .add_yaxis(index+"个数",df[index].value_counts().values.tolist())
+            .add_yaxis('COUNT('+index+')',df[index].value_counts().values.tolist())
             .set_global_opts(
-            toolbox_opts=opts.ToolboxOpts(),
+            datazoom_opts=[opts.DataZoomOpts(), opts.DataZoomOpts(type_="inside")],
+            toolbox_opts=opts.ToolboxOpts(orient='vertical',pos_left='90%'),
             tooltip_opts=opts.TooltipOpts(trigger="axis", axis_pointer_type="cross"),
             title_opts=opts.TitleOpts(title="column分布情况"),
             legend_opts=opts.LegendOpts(pos_left="65%"),
-            yaxis_opts=opts.AxisOpts(name="Count"),
+            yaxis_opts=opts.AxisOpts(name="CountNum"),
             xaxis_opts=opts.AxisOpts(name=index),
         )
     )
     bar2=(
         Bar()
             .add_xaxis(list(df[column].value_counts().index))
-            .add_yaxis(column+"个数",df[column].value_counts().values.tolist())
+            .add_yaxis('COUNT('+column+')',df[column].value_counts().values.tolist())
             .set_global_opts(
             title_opts=opts.TitleOpts(title="index分布情况",pos_left="50%"),
-            toolbox_opts=opts.ToolboxOpts(),
+            toolbox_opts=opts.ToolboxOpts(orient='vertical',pos_left='90%'),
             tooltip_opts=opts.TooltipOpts(trigger="axis", axis_pointer_type="cross"),
             legend_opts=opts.LegendOpts(pos_left="25%"),
-            yaxis_opts=opts.AxisOpts(name="Count"),
+            yaxis_opts=opts.AxisOpts(name="CountNum"),
             xaxis_opts=opts.AxisOpts(name=column),
         )
     )
@@ -271,7 +273,7 @@ def creat_info_chart(df,index,column):
             label_opts=opts.LabelOpts(is_show=False),
         )
     line.set_global_opts(
-        toolbox_opts=opts.ToolboxOpts(),
+        toolbox_opts=opts.ToolboxOpts(orient='vertical',pos_left='90%'),
         title_opts=opts.TitleOpts(title="原数据基本信息图",pos_top="50%"),
         tooltip_opts=opts.TooltipOpts(trigger="axis", axis_pointer_type="cross"),
         legend_opts=opts.LegendOpts(pos_top="55%"),
@@ -290,21 +292,45 @@ def creat_info_chart(df,index,column):
 
     )
     return grid
-def creat_pivot_chart(df,column,value):
+def creat_pivot_chart(df,index,column):
+    eplot.set_config(return_type='CHART')
+    chart=df.eplot.bar().set_global_opts(
+        # title_opts=opts.TitleOpts(title="Bar-DataZoom（slider+inside）"),
+        datazoom_opts=[opts.DataZoomOpts(), opts.DataZoomOpts(type_="inside")],
+        yaxis_opts=opts.AxisOpts(name=column),
+        xaxis_opts=opts.AxisOpts(name=index),
+        tooltip_opts=opts.TooltipOpts(trigger="axis", axis_pointer_type="cross",position='bottom'),
+        toolbox_opts=opts.ToolboxOpts(orient='vertical',pos_left='90%',pos_top='10%'),
+        legend_opts=opts.LegendOpts(type_='scroll')
+    )
+    return chart
+    # bar = (
+    #     Bar()
+    #         .add_xaxis(["衬衫", "羊毛衫", "雪纺衫", "裤子", "高跟鞋", "袜子"])
+    #         .add_yaxis("商家A", [5, 20, 36, 10, 75, 90])
+    #         .set_global_opts(title_opts=opts.TitleOpts(title="主标题", subtitle="副标题"))#全局配置
+    #     # 或者直接使用字典参数
+    #     # .set_global_opts(title_opts={"text": "主标题", "subtext": "副标题"})
+    # )
+    # return bar
+def creat_pivot_chart01(df,column,value):
     index_len=len(df.index)
     # column
-    df.plot(kind='bar')
+
+    # plt.figure(figsize=(10,10))
+    df.plot(kind='bar',stacked=True)
     # plt.rcParams['font.family']=['STFangsong']
     # 直接通过修改font.sans-serif 参数改变绘图时的字体
     plt.rcParams['font.sans-serif'] = ['SimHei']
+
     plt.ylabel(value)
     plt.legend(frameon=False,ncol=3,title=column,
                bbox_to_anchor=(1.05, 1), loc=3, borderaxespad=0) #去掉图例边框
-    plt.xticks(range(0,index_len,1),df.index.tolist(),rotation=270)
-    ax=plt.gca()
-    ax.spines['top'].set_visible(False)
-    ax.spines['right'].set_visible(False)
-    ax.tick_params(bottom=False)#隐藏x轴刻度线
+    # plt.xticks(range(0,index_len,1),df.index.tolist(),rotation=270)
+    # ax=plt.gca()
+    # ax.spines['top'].set_visible(False)
+    # ax.spines['right'].set_visible(False)
+    # ax.tick_params(bottom=False)#隐藏x轴刻度线
     # for label in ax.get_xticklabels():
     #     label.set_visible(False)
     # for label in ax.get_xticklabels()[::3]:

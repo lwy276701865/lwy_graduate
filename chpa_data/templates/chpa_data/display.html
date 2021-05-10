@@ -3,7 +3,9 @@
 {% block display %}
     <!-- 数据处理时的loading遮罩 -->
     <div class="ui active dimmer" id="dimmer">
-        <div class="ui text" style="color: #FFFFFF">导入文件后，请使用左侧筛选框选择分析维度和定义市场</div>
+        <pre>
+        <div class="ui text myfont_size" style="color: #FFFFFF">{{ metadata }}</div>
+        </pre>
     </div>
 
     <!-- 创建4个Semantic UI tab，根据鼠标点击切换，以保证页面干净清爽 -->
@@ -16,7 +18,7 @@
 
     {#    第一个tab，放置三个pyecharts图表，即index和column分类统计图；describe图表#}
     <div class="ui tab segment" data-tab="competition">
-        {#        pyecharts图表#}
+{#                pyecharts图表#}
         <h3 class="ui header">
             <div class="content">
                 数据基本信息概览
@@ -51,19 +53,8 @@
         </div>
     </div>
 
-    {#    第三个tab，放了静态图表和透视表格。就是数据透视表和它的chart形式#}
+    {#    第三个tab，放了透视柱状图和透视表格。就是数据透视表和它的chart形式#}
     <div class="ui tab segment active" data-tab="total">
-        {#    静态图表#}
-        <h3 class="ui header">
-            <div class="content">
-                数据透视图
-            </div>
-        </h3>
-        <div class="ui divider"></div>
-        <div class="ui container">
-            <img id="bubble_performance" style="width: 100%" alt="" />
-        </div>
-
         {#        透视表格#}
         <h3 class="ui header">
             <div class="content">
@@ -81,6 +72,17 @@
         <div class="ui container" id='result_table' style="width: 100%; overflow-x: scroll; overflow-y: hidden;">
             <!-- Django渲染html代码时需要加入|safe，保证html不会被自动转义 -->
             {{ ptable|safe }}
+        </div>
+
+        {#                pyecharts透视图表#}
+        <h3 class="ui header">
+            <div class="content">
+                数据透视图
+            </div>
+        </h3>
+        <div class="ui divider"></div>
+        <div class="ui container">
+            <div id="pivot_chart" style="width:1000px; height:600px;"></div>
         </div>
     </div>
 
@@ -149,4 +151,9 @@
             window.location.href = downloadUrl;
         })
     </script>
+    <style>
+        .myfont_size{
+            font-size: 30px;
+        }
+    </style>
 {% endblock %}

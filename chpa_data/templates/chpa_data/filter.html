@@ -122,20 +122,18 @@
 
         var dimmer = $("#dimmer");
         dimmer.attr('class', 'ui active dimmer'); // 点击筛选按钮后dimmer变成active
-        dimmer.children('div').remove(); // 删除初始化文字
+        dimmer.children('pre').remove(); // 删除初始化文字
         dimmer.append('<div class="ui text loader">数据加载中……</div>'); // 增加loading效果和文字
-
-            // Pyecharts图表初始化
-            {#var chart = echarts.init(document.getElementById('bar_total_trend'), 'white', {renderer: 'canvas'});#}
-            {#chart.showLoading({#}
-            {#    text : '正在加载数据'#}
-            {# });  //增加加载提示#}
-
             var info_chart = echarts.init(document.getElementById('info_chart'), 'white', {renderer: 'canvas'});
             info_chart.showLoading({
                 text: '正在加载数据'
-            });  //增加加载提示
+             });  //增加加载提示
 
+        // Pyecharts图表初始化
+        var pivot_chart = echarts.init(document.getElementById('pivot_chart'), 'white', {renderer: 'canvas'});
+        pivot_chart.showLoading({
+            text : '正在加载数据'
+         });  //增加加载提示
         $.ajax({
             // 请求的url
             url: '{% url 'chpa:query' %}',
@@ -156,18 +154,16 @@
                 // 去除加载遮罩（去掉active）
                 dimmer.attr('class', 'ui dimmer');
 
-
-                {#chart.clear();#}
-                {#chart.setOption(ret['bar_total_trend']);#}
-                {#chart.hideLoading()#}
-
                 // 展示Pyecharts图
                 info_chart.clear();
                 info_chart.setOption(ret['info_chart']);
                 info_chart.hideLoading()
 
+                pivot_chart.clear();
+                pivot_chart.setOption(ret['pivot_chart']);
+                pivot_chart.hideLoading()
                 // 展示Matplotlib气泡图
-                $("#bubble_performance").attr('src', ret['bubble_performance']);
+                {#$("#bubble_performance").attr('src', ret['bubble_performance']);#}
             },
             {#error: function () {            //失败#}
             {#    console.log('失败')#}

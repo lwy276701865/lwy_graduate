@@ -17,6 +17,7 @@ except ImportError:
     from io import StringIO as IO # for legacy python
 import datetime
 import xlsxwriter
+import io
 from django.contrib.auth.decorators import login_required
 ENGINE = create_engine('mysql+pymysql://root:lwydecd+20@localhost:3306/test') #创建数据库连接引擎
 # 根据用户传进来的数据创建的表
@@ -37,7 +38,7 @@ def index(request):
     elif request.method == 'POST':
         content =request.FILES.get("upload", None)
         if not content:
-            return render(request,  'chpa_data/display.html', {'message': '没有上传内容'})
+            return render(request,  'chpa_data/display.html', {'message': '没有上传内容','metadata':'请上传文件'})
         position = os.path.join('./upload',content.name)
         newfile=position[0:position.rfind('.')]+'toUTF-8.csv'
         #获取上传文件的文件名，并将其存储到指定位置
@@ -73,7 +74,7 @@ def index(request):
         db = 'test'
 
         M = CsvToMysql(hostname=hostname, port=port, user=user, passwd=passwd, db=db)
-        M.read_csv(file_path)
+        metadata=M.read_csv(file_path)
 
         sql='select column_name,data_type from information_schema.columns where table_name={} '.format(DB_TABLE.replace('`',"'"))
         df=pd.read_sql_query(sql,ENGINE)
@@ -97,7 +98,8 @@ def index(request):
             'mselect_dict':mselect_dict,
             'mselect_dict_value':mselect_dict_value,
             'message': '上传成功',
-            'aggfunc_select':aggfunc_select
+            'aggfunc_select':aggfunc_select,
+            'metadata':metadata
         }
         return render(request,  'chpa_data/display.html',context)      #返回客户端信息
     else:
@@ -134,7 +136,6 @@ def get_df(form_dict, is_pivoted=True):
                                  index=index,
                                  columns=column,
                                  aggfunc=aggfunc)
-        pivoted.dropna(axis=0,how='all')
         return pivoted
     else:
         return df
@@ -172,7 +173,7 @@ def query(request):
     info_chart=json.loads(prepare_chart(df, 'get_info_chart', index,column))
 
     # Matplotlib静态图表
-    bubble_performance = prepare_chart(pivoted, 'get_pivot_chart',column,value)
+    pivot_chart = json.loads(prepare_chart(pivoted, 'get_pivot_chart',index,value+'_DIMENSIONinAGG('+aggfunc+')'))
     context = {
         # "market_size": kpi["market_size"],
         # "market_gr": kpi["market_gr"],
@@ -181,7 +182,7 @@ def query(request):
         "initdata_table":inittable,
         # 'bar_total_trend': bar_total_trend,
         'info_chart':info_chart,
-        'bubble_performance': bubble_performance
+        'pivot_chart': pivot_chart
     }
 
     return HttpResponse(json.dumps(context, ensure_ascii=False), content_type="application/json charset=utf-8") # 返回结果必须是json格式
@@ -382,7 +383,7 @@ def prepare_chart(df,  # 输入经过pivoted方法透视过的df，不是原始d
         return chart.dump_options()  # 用json格式返回Pyecharts图表对象的全局设置
     elif chart_type=='get_pivot_chart':
         chart=creat_pivot_chart(df,index,column)
-        return chart
+        return chart.dump_options()
     else:
         return None
 @login_required
@@ -434,7 +435,11 @@ class CsvToMysql(object):
         # print(os.path.split(filename)[-1].split('.'))
         # print(os.path.split(filename)[-1].split('.')[0])
         self.csv2mysql(db_name=self.dbname,table_name=table_name, df=df )
-
+        buffer = io.StringIO()
+        df.info(buf=buffer,memory_usage='deep')
+        s =buffer.getvalue()
+        ss="您导入的数据的元数据如下：\n"+s[s.rfind('Range'):]
+        return ss
     # pandas的数据类型和MySQL是不通用的，需要进行类型转换。字段名可能含有非法字符，需要反引号。
     def make_table_sql(self,df):
         #将csv中的字段类型转换成mysql中的字段类型
@@ -506,6 +511,7 @@ def get_file_code(content_type):
     return source_encoding
 
 # 初始化前端表单
+
 def init_html_form(df):
     D_screen_condition=dict(zip(df['COLUMN_NAME'],'`'+df['COLUMN_NAME']+'`'))
     #传给前端value选择的备选值,因为value只能选择数值类型的数据,选择字符数据没有意义

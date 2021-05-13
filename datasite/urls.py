@@ -20,5 +20,4 @@ urlpatterns = [
     path('chpa/', include('chpa_data.urls')),
     path('admin/', admin.site.urls),
     path('accounts/', include('django.contrib.auth.urls')),
-    path('disk/',include('disk.urls')),
 ]

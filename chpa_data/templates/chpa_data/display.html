@@ -102,17 +102,20 @@
     </script>
 
 {#    复制功能#}
+{#    这方式有很大的局限性，只能用表单元素，并且不能设置disabled属性#}
     <script>
         // 复制有node结构的文本区域
         function selectElementContents(el) {
             var body = document.body, range, sel;
             if (document.createRange && window.getSelection) {
                 range = document.createRange();
+
+                /* 窗口的selection对象，表示用户选择的文本 */
                 sel = window.getSelection();
-                sel.removeAllRanges();
+                sel.removeAllRanges();// 将已经包含的已选择的对象清除掉
                 try {
                     range.selectNodeContents(el);
-                    sel.addRange(range);
+                    sel.addRange(range);// 将要复制的区域的range对象添加到selection对象中
                 } catch (e) {
                     range.selectNode(el);
                     sel.addRange(range);
@@ -122,7 +125,7 @@
                 range.moveToElementText(el);
                 range.select();
             }
-            document.execCommand("Copy");
+            document.execCommand("Copy");// 执行copy命令，copy用户选择的文本
         }
     </script>
 

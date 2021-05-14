@@ -18,7 +18,7 @@
 
     {#    第一个tab，放置三个pyecharts图表，即index和column分类统计图；describe图表#}
     <div class="ui tab segment" data-tab="competition">
-{#                pyecharts图表#}
+        {#                pyecharts图表#}
         <h3 class="ui header">
             <div class="content">
                 数据基本信息概览
@@ -33,6 +33,17 @@
 
     {#    第二个tab，原数据表格#}
     <div class="ui tab segment" data-tab="bubble_performance">
+        {#                原数据pyecharts透视图#}
+        <h3 class="ui header">
+            <div class="content">
+                原数据展示图
+            </div>
+        </h3>
+        <div class="ui divider"></div>
+        <div class="ui container">
+            <div id="origin_data_chart" style="width:1000px; height:600px;"></div>
+        </div>
+
         {#        原数据表格#}
         <h3 class="ui header">
             <div class="content">
@@ -88,21 +99,21 @@
 
     {#    第四个tab，导出数据#}
     <div class="ui tab segment" data-tab="export">
-            <div class="ui buttons">
-                <input class="ui blue button" type='button' id='export_pivot' value="导出透视后的数据"/>
-            </div>
-            <div class="ui buttons">
-                <input class="ui blue button" type='button' id='export_raw' value="导出原始数据"/>
-            </div>
+        <div class="ui buttons">
+            <input class="ui blue button" type='button' id='export_pivot' value="导出透视后的数据"/>
         </div>
+        <div class="ui buttons">
+            <input class="ui blue button" type='button' id='export_raw' value="导出原始数据"/>
+        </div>
+    </div>
 
     <!-- 下方js为保证Semantic UI tab类工作 -->
     <script>
         $('.pointing.secondary.menu .item').tab();
     </script>
 
-{#    复制功能#}
-{#    这方式有很大的局限性，只能用表单元素，并且不能设置disabled属性#}
+    {#    复制功能#}
+    {#    这方式有很大的局限性，只能用表单元素，并且不能设置disabled属性#}
     <script>
         // 复制有node结构的文本区域
         function selectElementContents(el) {
@@ -138,7 +149,7 @@
         ;
     </script>
 
-{#    导出数据#}
+    {#    导出数据#}
     <script>
         $("#export_pivot").click(function(){
             var form_data = getForm();

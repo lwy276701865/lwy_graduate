@@ -15,11 +15,11 @@
                 <div class="fields">
                     <div class="sixteen wide field">
                         <h4>选择index</h4>
-                        <select name="INDEX_select[]" id="INDEX_select" class="ui fluid search dropdown" multiple="">
-                          <option value="" style="display: none"></option>
-{#                            <option value="0">请选择</option>#}
+                        <select name="INDEX_select" id="INDEX_select" class="ui fluid search dropdown" >
+                            <option value="" style="display: none"></option>
+                            {#                            <option value="0">请选择</option>#}
                             {% for key, value in mselect_dict.items %}
-                                <option value="{{ value.select }}">{{key }}</option>
+                                <option value="{{ value.select }}">{{ key }}</option>
                             {% endfor %}
                         </select>
                     </div>
@@ -29,9 +29,9 @@
                 <div class="fields">
                     <div class="sixteen wide field">
                         <h4>选择column</h4>
-                        <select name="COLUMN_select[]" id="COLUMN_select" class="ui fluid search dropdown" multiple="">
+                        <select name="DIMENSION_select" id="DIMENSION_select" class="ui fluid search dropdown" >
                             <option value="" style="display: none"></option>
-{#                            <option value="0">请选择</option>#}
+                            {#                            <option value="0">请选择</option>#}
                             {% for key, value in mselect_dict.items %}
                                 <option value="{{ value.select }}">{{ key }}</option>
                             {% endfor %}
@@ -43,9 +43,9 @@
                 <div class="fields">
                     <div class="sixteen wide field">
                         <h4>选择value</h4>
-                        <select name="VALUE_select[]" id="VALUE_select" class="ui fluid search dropdown" multiple="">
+                        <select name="VALUE_select" id="VALUE_select" class="ui fluid search dropdown">
                             <option value="" style="display: none"></option>
-{#                            <option value="0">请选择</option>#}
+                            {#                            <option value="0">请选择</option>#}
                             {% for key, value in mselect_dict_value.items %}
                                 <option value="{{ value.select }}">{{ key }}</option>
                             {% endfor %}
@@ -57,7 +57,7 @@
                 <div class="fields">
                     <div class="sixteen wide field">
                         <h4>选择运算方法</h4>
-                        <select name="AGGFUNC_select[]" id="AGGFUNC_select" class="ui fluid search dropdown" multiple="">
+                        <select name="AGGFUNC_select" id="AGGFUNC_select" class="ui fluid search dropdown" >
                             <option value="" style="display: none"></option>
                             {% for key, value in aggfunc_select.items %}
                                 <option value="{{ value }}">{{ key }}</option>
@@ -71,9 +71,9 @@
             <div class="field">
                 {% for key, value in mselect_dict.items %}
                     <div class="field">
-{#                      为什么<select name>要加个后缀[]？这是因为以后在jQuery传参时多选控件#}
-{#                     （实际就是传送array而不是单个变量的控件）的<select name>在很多场景下必须以[]结尾才能 #}
-{#                      正确工作。但有时[]也不是必须的。#}
+                        {#                      为什么<select name>要加个后缀[]？这是因为以后在jQuery传参时多选控件#}
+                        {#                     （实际就是传送array而不是单个变量的控件）的<select name>在很多场景下必须以[]结尾才能 #}
+                        {#                      正确工作。但有时[]也不是必须的。#}
                         <select name="{{ value.select|add:"_select[]" }}" id="{{ value.select|add:"_select" }}" multiple=""
                                 class="ui fluid search dropdown">
                             <option value="">{{ key }}</option>
@@ -92,6 +92,7 @@
         </form>
     </div>
 </div>
+
 <!-- 因为用到Semantic UI的Search Dropdown控件，必须有下面语句初始化 -->
 <script>
     $('.ui.fluid.search.dropdown')
@@ -101,38 +102,43 @@
 {#ajax异步传参相关函数#}
 <script type="text/javascript">
     $("#AJAX_get").click(function (event) {
-            event.preventDefault(); // 防止表单默认的提交
-            var form_data = getForm()
-        {#if(form_data['DIMENSION_select']==''||#}
-        {#    form_data['VALUE_select']==''||#}
-        {#    form_data['INDEX_select']==''||#}
-        {#    form_data['AGGFUNC_select']=='')#}
-        {#{#}
-        {#    alert('维度不允许取空值')#}
-        {#    return false;#}
-        {# }#}
-        {#    if(form_data['DIMENSION_select']==form_data['INDEX_select']||#}
-        {#        form_data['DIMENSION_select']==form_data['VALUE_select']||#}
-        {#        form_data['VALUE_select']==form_data['INDEX_select'])#}
-        {#    {#}
-        {#        alert('维度不允许取重复值')#}
-        {#       return false;#}
-        {#    }#}
+        event.preventDefault(); // 防止表单默认的提交
+        var form_data = getForm()
+        if(form_data['DIMENSION_select']==''||
+            form_data['VALUE_select']==''||
+            form_data['INDEX_select']==''||
+            form_data['AGGFUNC_select']=='')
+        {
+            alert('维度不允许取空值')
+            return false;
+        }
+        if(form_data['DIMENSION_select']==form_data['INDEX_select']||
+            form_data['DIMENSION_select']==form_data['VALUE_select']||
+            form_data['VALUE_select']==form_data['INDEX_select'])
+        {
+            alert('维度不允许取重复值')
+            return false;
+        }
 
         var dimmer = $("#dimmer");
         dimmer.attr('class', 'ui active dimmer'); // 点击筛选按钮后dimmer变成active
         dimmer.children('pre').remove(); // 删除初始化文字
         dimmer.append('<div class="ui text loader">数据加载中……</div>'); // 增加loading效果和文字
-            var info_chart = echarts.init(document.getElementById('info_chart'), 'white', {renderer: 'canvas'});
-            info_chart.showLoading({
-                text: '正在加载数据'
-             });  //增加加载提示
+        var info_chart = echarts.init(document.getElementById('info_chart'), 'white', {renderer: 'canvas'});
+        info_chart.showLoading({
+            text: '正在加载数据'
+        });  //增加加载提示
 
         // Pyecharts图表初始化
         var pivot_chart = echarts.init(document.getElementById('pivot_chart'), 'white', {renderer: 'canvas'});
         pivot_chart.showLoading({
             text : '正在加载数据'
-         });  //增加加载提示
+        });  //增加加载提示
+
+        var origin_data_chart = echarts.init(document.getElementById('origin_data_chart'), 'white', {renderer: 'canvas'});
+        origin_data_chart.showLoading({
+            text : '正在加载数据'
+        });  //增加加载提示
         $.ajax({
             // 请求的url
             url: '{% url 'chpa:query' %}',
@@ -144,7 +150,7 @@
             success: function (ret) {     //成功执行
                 {# 初始化透视表格 #}
                 $("#result_table").html(ret['ptable']);//这个ptable是后端query函数传过来的ptable
-                {#initPivotTable($("#ptable")) // 为id为ptable的DOM表格初始化DataTables，即上一行刚刚修改了DOM元素的那个#}
+                initTable($("#ptable")) // 为id为ptable的DOM表格初始化DataTables，即上一行刚刚修改了DOM元素的那个
 
                 {# 初始化原数据表格 #}
                 $("#initdata_result_table").html(ret['initdata_table']);
@@ -154,13 +160,17 @@
                 dimmer.attr('class', 'ui dimmer');
 
                 // 展示Pyecharts图
-                {#info_chart.clear();#}
-                {#info_chart.setOption(ret['info_chart']);#}
-                {#info_chart.hideLoading()#}
-                {##}
+                info_chart.clear();
+                info_chart.setOption(ret['info_chart']);
+                info_chart.hideLoading()
+
                 pivot_chart.clear();
                 pivot_chart.setOption(ret['pivot_chart']);
                 pivot_chart.hideLoading()
+
+                origin_data_chart.clear();
+                origin_data_chart.setOption(ret['origin_data_chart']);
+                origin_data_chart.hideLoading()
             },
             error: function (xhr, textStatus, errorThrown) {
                 dimmer.children('div').text("错误信息："+errorThrown);
@@ -205,23 +215,28 @@
 {#获取前端选择的表单结果，即用户选择了哪些数据#}
 <script>
     function getForm(){
-        // 获取维度选择下拉框的值
+        // 获取单选下拉框的值
         var form_data = {
-            "INDEX_select": $("#INDEX_select").val(),
-            "COLUMN_select": $("#COLUMN_select").val(),
+            "DIMENSION_select": $("#DIMENSION_select").val(),
             "VALUE_select": $("#VALUE_select").val(),
+            "INDEX_select": $("#INDEX_select").val(),
             "AGGFUNC_select":$("#AGGFUNC_select").val()
         };
 
-        // 获取数据筛选下拉框的值（index和column）
+        // 获取多选下拉框的值（index和column）
         var dict = {{ mselect_dict|safe }};
         for (key in dict) {
             var form_name = dict[key]['select'] + "_select";
             jquery_selector_id = "[id='" + form_name + "']";//因为我们的部分多选框id有空格，要用这种写法
             form_data[form_name] = $(jquery_selector_id).val();
         }
+        // 获取value下拉框的值
+        var dict2 = {{ mselect_dict_value|safe }};
+        for (key in dict2) {
+            var form_name = dict2[key]['select'] + "_select";
+            jquery_selector_id = "[id='" + form_name + "']";//因为我们的部分多选框id有空格，要用这种写法
+            form_data[form_name] = $(jquery_selector_id).val();
+        }
         return form_data
     }
 </script>
-
-

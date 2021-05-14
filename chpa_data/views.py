@@ -22,10 +22,11 @@ from django.contrib.auth.decorators import login_required
 ENGINE = create_engine('mysql+pymysql://root:lwydecd+20@localhost:3306/test') #创建数据库连接引擎
 # 根据用户传进来的数据创建的表
 DB_TABLE=''
-index_list=[]
-column_list=[]
-value_list=[]
-aggfunc_list=[]
+column=''
+index=''
+value=''
+aggfunc=''
+
 # 此函数根据用户导入的文件来动态初始化界面
 # 1.获取用户导入的文件
 # 2.将文件以utf-8的编码形式写入新文件
@@ -110,11 +111,6 @@ def delesig(str):
     else:
         str=str
     return str
-def get_dimension_list(selected,list):
-    list.clear()
-    for i in selected:
-        list.append(delesig(i))
-    return list
 # 此函数根据form_dict数据做对应的处理（处理为原数据或者透视数据表）
 def get_df(form_dict, is_pivoted=True):
     sql = sqlparse(form_dict)  # sql拼接
@@ -125,23 +121,24 @@ def get_df(form_dict, is_pivoted=True):
 
     # 前端维度的选择用在透视函数的参数，数据筛选的选择用于生成df
     if is_pivoted is True:
-        index_selected = form_dict['INDEX_select[]']
-        column_selected = form_dict['COLUMN_select[]']
-        value_selected = form_dict['VALUE_select[]']
-        aggfunc_selected=form_dict['AGGFUNC_select[]']
-        global index_list
-        index_list=get_dimension_list(index_selected,index_list)
-        global column_list
-        column_list=get_dimension_list(column_selected,column_list)
-        global value_list
-        value_list=get_dimension_list(value_selected,value_list)
-        global aggfunc_list
-        aggfunc_list=get_dimension_list(aggfunc_selected,aggfunc_list)
+        dimension_selected = form_dict['DIMENSION_select'][0]
+        index_selected = form_dict['INDEX_select'][0]
+        value_selected = form_dict['VALUE_select'][0]
+        aggfunc_selected=form_dict['AGGFUNC_select'][0]
+        global column
+        column=delesig(dimension_selected)
+        global index
+        index=delesig(index_selected)
+        global value
+        value=delesig(value_selected)
+        global aggfunc
+        aggfunc=delesig(aggfunc_selected)
         pivoted = pd.pivot_table(df,
-                                 values=value_list,
-                                 index=index_list,
-                                 columns=column_list,
-                                 aggfunc=aggfunc_list)
+                                 values=value,
+                                 index=index,
+                                 columns=column,
+                                 aggfunc=aggfunc,
+                                 fill_value=0)
         return pivoted
     else:
         return originData_df
@@ -164,27 +161,28 @@ def query(request):
     # table = ptable(pivoted)
     # 透视表格
     table = pivoted.to_html(#formatters=build_formatters_by_col(pivoted),  # 逐列调整表格内数字格式
-                          classes='ui sortable celled table ',  # 指定表格css class为Semantic UI主题
-                          table_id='ptable'  # 指定表格id
-                          )
+        classes='ui selectable celled table',  # 指定表格css class为Semantic UI主题
+        table_id='ptable'  # 指定表格id
+    )
     # 原数据表格
     inittable = df.to_html(#formatters=build_formatters_by_col(pivoted),  # 逐列调整表格内数字格式
-        classes='ui selectable celled table ',  # 指定表格css class为Semantic UI主题
+        classes='ui selectable celled table',  # 指定表格css class为Semantic UI主题
         table_id='initdata_table'  # 指定表格id
     )
-    # Pyecharts交互图表
-    # bar_total_trend = json.loads(prepare_chart(pivoted, 'bar_total_trend', index,column))
+
 
     #describe和valuecounts函数转为图表
-    # info_chart=json.loads(prepare_chart(df, 'get_info_chart', index,column))
-
-    # Matplotlib静态图表
-    pivot_chart = json.loads(prepare_chart(pivoted, 'get_pivot_chart'))
+    info_chart=json.loads(prepare_chart(df, 'get_info_chart', index,column,aggfunc,value))
+    # 原数据图
+    origin_data_chart=json.loads(prepare_chart(df,'creat_origindata_chart',index,column,aggfunc,value))
+    # 3d透视图
+    pivot_chart = json.loads(prepare_chart(pivoted, 'get_pivot_chart',index,column,aggfunc,value))
     context = {
         'ptable':table,
         "initdata_table":inittable,
-        # 'info_chart':info_chart,
-        'pivot_chart': pivot_chart
+        'info_chart':info_chart,
+        'pivot_chart': pivot_chart,
+        'origin_data_chart':origin_data_chart
     }
 
     return HttpResponse(json.dumps(context, ensure_ascii=False), content_type="application/json charset=utf-8") # 返回结果必须是json格式
@@ -195,13 +193,13 @@ def get_distinct_list(column, db_table):
     df = pd.read_sql_query(sql, ENGINE)
     l = df.values.flatten().tolist()
     return l
-# 构造sql语句，用作筛选数据
+# 构造sql语句
 def sqlparse(context):
     sql = "Select * from %s Where true " % (DB_TABLE)  # 构造sql语句前半段
 
     # 下面循环处理多选部分（即数据筛选部分）
     for k, v in context.items():
-        if k not in ['csrfmiddlewaretoken', 'INDEX_select[]', 'COLUMN_select[]', 'VALUE_select[]','AGGFUNC_select[]']:
+        if k not in ['csrfmiddlewaretoken', 'DIMENSION_select', 'VALUE_select', 'INDEX_select','AGGFUNC_select']:
             if k[-2:] == '[]':
                 field_name = k[:-9]  # 如果键以[]结尾，删除_select[]取原字段名
             else:
@@ -223,13 +221,19 @@ def sql_extent(sql, field_name, selected, operator=" AND "):
 
 # 可视化数据，渲染图表
 def prepare_chart(df,  # 输入经过pivoted方法透视过的df，不是原始df
-                  chart_type  # 图表类型字符串，人为设置，根据图表类型不同做不同的Pandas数据处理，及生成不同的Pyechart对象
-                 ):
-    # if chart_type=='get_info_chart':#渲染df.describe的出来的表格
-    #     chart=creat_info_chart(df,index,column)
-    #     return chart.dump_options()  # 用json格式返回Pyecharts图表对象的全局设置
-    if chart_type=='get_pivot_chart':
-        chart=creat_pivot_chart(df)
+                  chart_type,  # 图表类型字符串，人为设置，根据图表类型不同做不同的Pandas数据处理，及生成不同的Pyechart对象
+                  index,  # 前端表单字典，用来获得一些变量作为图表的标签如单位
+                  column,
+                  agg,
+                  value):
+    if chart_type=='get_info_chart':#渲染df.describe的出来的表格
+        chart=creat_info_chart(df,index,column)
+        return chart.dump_options()  # 用json格式返回Pyecharts图表对象的全局设置
+    elif chart_type=='get_pivot_chart':
+        chart=creat_pivot_chart(df,index,column,agg,value)
+        return chart.dump_options()
+    elif chart_type=='creat_origindata_chart':
+        chart=creat_origindata_chart(df)
         return chart.dump_options()
     else:
         return None

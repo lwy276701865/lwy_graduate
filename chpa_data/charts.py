@@ -1,4 +1,4 @@
-from pyecharts.charts import Line, Bar, Grid
+from pyecharts.charts import Line, Bar, Grid,Bar3D
 from pyecharts import options as opts
 import numpy as np
 import matplotlib.pyplot as plt
@@ -12,6 +12,7 @@ import scipy.stats as stats
 import seaborn as sns
 import matplotlib.style as mplstyle
 from eplot import eplot
+import pandas as pd
 myfont = fm.FontProperties(fname='C:/Windows/Fonts/msyh.ttc')
 
 # 此函数创建三个基本信息图表
@@ -75,15 +76,42 @@ def creat_info_chart(df,index,column):
 
     )
     return grid
-def creat_pivot_chart(df):
+# 创建原数据图
+def creat_origindata_chart(df):
     eplot.set_config(return_type='CHART')
     chart=df.eplot.bar().set_global_opts(
-        # title_opts=opts.TitleOpts(title="Bar-DataZoom（slider+inside）"),
         datazoom_opts=[opts.DataZoomOpts(), opts.DataZoomOpts(type_="inside")],
-        yaxis_opts=opts.AxisOpts(name='我是y轴'),
-        xaxis_opts=opts.AxisOpts(name='我是x轴'),
         tooltip_opts=opts.TooltipOpts(trigger="axis", axis_pointer_type="cross",position='bottom'),
         toolbox_opts=opts.ToolboxOpts(orient='vertical',pos_left='90%',pos_top='10%'),
         legend_opts=opts.LegendOpts(type_='scroll')
     )
     return chart
+# 创建透视表的图
+def creat_pivot_chart(pivot,index,column,agg,value):
+    index_list=pivot.index.tolist()
+    column_list=pivot.columns.tolist()
+    if pivot.max().tolist():
+        visualmap_max=max(pivot.max().tolist())
+        range_text=['最大值', '最小值']
+    else:
+        visualmap_max=1
+        range_text=['空空', '如也']
+    # print(pivot.max())
+    data = [(i, j, int(pivot.iloc[i,j])) for i in range(len(index_list)) for j in range(len(column_list))]
+    c = (
+        Bar3D()
+            .add(
+            series_name=agg+'('+value+')',
+            data=data,
+            shading="lambert",
+            xaxis3d_opts=opts.Axis3DOpts(index_list, type_="category",name=index),
+            yaxis3d_opts=opts.Axis3DOpts(column_list, type_="category",name=column),
+            zaxis3d_opts=opts.Axis3DOpts(type_="value"),
+        )
+            .set_global_opts(
+            visualmap_opts=opts.VisualMapOpts(max_=visualmap_max,range_text=range_text),
+            title_opts=opts.TitleOpts(title="数据透视三维图"),
+            toolbox_opts=opts.ToolboxOpts(),
+        )
+    )
+    return c

@@ -75,13 +75,13 @@ def creat_info_chart(df,index,column):
 
     )
     return grid
-def creat_pivot_chart(df,index,column):
+def creat_pivot_chart(df):
     eplot.set_config(return_type='CHART')
     chart=df.eplot.bar().set_global_opts(
         # title_opts=opts.TitleOpts(title="Bar-DataZoom（slider+inside）"),
         datazoom_opts=[opts.DataZoomOpts(), opts.DataZoomOpts(type_="inside")],
-        yaxis_opts=opts.AxisOpts(name=column),
-        xaxis_opts=opts.AxisOpts(name=index),
+        yaxis_opts=opts.AxisOpts(name='我是y轴'),
+        xaxis_opts=opts.AxisOpts(name='我是x轴'),
         tooltip_opts=opts.TooltipOpts(trigger="axis", axis_pointer_type="cross",position='bottom'),
         toolbox_opts=opts.ToolboxOpts(orient='vertical',pos_left='90%',pos_top='10%'),
         legend_opts=opts.LegendOpts(type_='scroll')

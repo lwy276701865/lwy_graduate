@@ -55,6 +55,17 @@
 
     {#    第三个tab，放了透视柱状图和透视表格。就是数据透视表和它的chart形式#}
     <div class="ui tab segment active" data-tab="total">
+        {#                pyecharts透视图表#}
+        <h3 class="ui header">
+            <div class="content">
+                数据透视图
+            </div>
+        </h3>
+        <div class="ui divider"></div>
+        <div class="ui container">
+            <div id="pivot_chart" style="width:1000px; height:600px;"></div>
+        </div>
+
         {#        透视表格#}
         <h3 class="ui header">
             <div class="content">
@@ -72,17 +83,6 @@
         <div class="ui container" id='result_table' style="width: 100%; overflow-x: scroll; overflow-y: hidden;">
             <!-- Django渲染html代码时需要加入|safe，保证html不会被自动转义 -->
             {{ ptable|safe }}
-        </div>
-
-        {#                pyecharts透视图表#}
-        <h3 class="ui header">
-            <div class="content">
-                数据透视图
-            </div>
-        </h3>
-        <div class="ui divider"></div>
-        <div class="ui container">
-            <div id="pivot_chart" style="width:1000px; height:600px;"></div>
         </div>
     </div>
 

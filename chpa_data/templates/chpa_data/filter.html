@@ -1,11 +1,16 @@
-<div class="ui container">
+<div class="ui container" >
     <div class="ui form">
-        <form action="" method="post" enctype="multipart/form-data">
+        <label id="mylabel" for="upload" class="ui fluid huge teal label">
+            <i class="file icon"></i>
+            点击选择文件
+        </label>
+
+        <form style="margin-top: 15px" action="" method="post" enctype="multipart/form-data">
             <!-- 在Django所有的 POST 表单元素时，需要加上下方的csrf_token tag，主要是安全方面的机制，本例后续使用AJAX方法，这里的POST class和token都不生效 -->
             {% csrf_token %}
             {#            导入文件区域#}
-            <input type="file" name="upload" accept="text/csv" />
-            <input  class="ui fluid large blue submit button" type="submit" value="导入" >
+            <input type="file" id="upload" name="upload" accept="text/csv" style="position:absolute;clip:rect(0 0 0 0);"/>
+            <input  id="upload_btn" class="ui fluid large blue submit button" type="submit" value="导入" >
             <div class="ui info message">{{ message}}</div>
 
             {#    分析维度区域#}
@@ -14,7 +19,7 @@
                 {#            选择index#}
                 <div class="fields">
                     <div class="sixteen wide field">
-                        <h4>选择index</h4>
+                        <h4>索引</h4>
                         <select name="INDEX_select" id="INDEX_select" class="ui fluid search dropdown" >
                             <option value="" style="display: none"></option>
                             {#                            <option value="0">请选择</option>#}
@@ -28,7 +33,7 @@
                 {#                选择column#}
                 <div class="fields">
                     <div class="sixteen wide field">
-                        <h4>选择column</h4>
+                        <h4>属性</h4>
                         <select name="DIMENSION_select" id="DIMENSION_select" class="ui fluid search dropdown" >
                             <option value="" style="display: none"></option>
                             {#                            <option value="0">请选择</option>#}
@@ -42,7 +47,7 @@
                 {#            选择value#}
                 <div class="fields">
                     <div class="sixteen wide field">
-                        <h4>选择value</h4>
+                        <h4>透视数据值</h4>
                         <select name="VALUE_select" id="VALUE_select" class="ui fluid search dropdown">
                             <option value="" style="display: none"></option>
                             {#                            <option value="0">请选择</option>#}
@@ -56,7 +61,7 @@
                 {#                选择aggfunc#}
                 <div class="fields">
                     <div class="sixteen wide field">
-                        <h4>选择运算方法</h4>
+                        <h4>透视方法</h4>
                         <select name="AGGFUNC_select" id="AGGFUNC_select" class="ui fluid search dropdown" >
                             <option value="" style="display: none"></option>
                             {% for key, value in aggfunc_select.items %}
@@ -87,7 +92,7 @@
             <br>
             {#        查询按钮#}
             <div class="ui buttons">
-                <input class="ui blue button" type='button' id='AJAX_get' value="查询"/>
+                <input class="ui blue big button" type='button' id='AJAX_get' value="查询"/>
             </div>
         </form>
     </div>
@@ -177,6 +182,9 @@
             }
         });
     })
+    $("upload_btn").click(function (event){
+
+    })
 </script>
 
 {#初始化表格#}
@@ -223,7 +231,7 @@
             "AGGFUNC_select":$("#AGGFUNC_select").val()
         };
 
-        // 获取多选下拉框的值（index和column）
+        // 获取多选下拉框的值
         var dict = {{ mselect_dict|safe }};
         for (key in dict) {
             var form_name = dict[key]['select'] + "_select";

@@ -153,21 +153,25 @@
     <script>
         $("#export_pivot").click(function(){
             var form_data = getForm();
-
+{#            {% url %}模板标签第一个参数的第一部分为appname的名字，第二部分为urls文件中的path变量的“name”的取值#}
+{#            第二个参数为需要传的参数#}
             var downloadUrl = '{% url 'chpa:export' 'pivoted' %}'+ '?' + $.param(form_data, true);
             window.location.href = downloadUrl;
         });
 
         $("#export_raw").click(function(){
             var form_data = getForm();
-
+            {#   $.param方法将数组或对象转化为字符串序列，以便用于 URL 查询字符串或 Ajax 请求。  #}
             var downloadUrl = '{% url 'chpa:export' 'raw' %}'+ '?' + $.param(form_data, true);
-            window.location.href = downloadUrl;
+            console.log(downloadUrl)
+            window.location.href = downloadUrl;//当前页面打开downloadUrl页面
         })
     </script>
     <style>
         .myfont_size{
             font-size: 30px;
+            font-family: "Bitstream Vera Sans Mono", Monaco, "Courier New", Courier, monospace;
+            font-style: italic;
         }
     </style>
 {% endblock %}

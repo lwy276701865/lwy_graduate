@@ -26,6 +26,7 @@ column=''
 index=''
 value=''
 aggfunc=''
+uploadfilename=''
 
 # 此函数根据用户导入的文件来动态初始化界面
 # 1.获取用户导入的文件
@@ -40,6 +41,8 @@ def index(request):
         if not content:
             return render(request,  'chpa_data/display.html', {'message': '没有上传内容','metadata':'请上传文件'})
         position = os.path.join('./upload',content.name)
+        global uploadfilename
+        uploadfilename=content.name
         newfile=position[0:position.rfind('.')]+'toUTF-8.csv'
         #获取上传文件的文件名，并将其存储到指定位置
         # wb+:以二进制格式打开一个文件用于读写。如果该文件已存在则打开文件，并从开头开始编辑，即原有内容会被删除。
@@ -50,7 +53,7 @@ def index(request):
         storage.close()
         #rb+:以二进制格式打开一个文件用于读写。文件指针将会放在文件的开头。一般用于非文本文件如图片等。
         f=open(position,'rb+')
-        content_type=f.read()#读取文件内容，content为bytes类型，而非string类型
+        content_type=f.read()#读取文件内容，content_type为bytes类型，而非string类型
 
         # 获取文件编码方式
         source_encoding=get_file_code(content_type)
@@ -75,10 +78,11 @@ def index(request):
 
         M = CsvToMysql(hostname=hostname, port=port, user=user, passwd=passwd, db=db)
         metadata=M.read_csv(file_path)
-
+        if metadata=='null':
+            return render(request,  'chpa_data/display.html', {'message': uploadfilename+'为空文件！','metadata':'您上传的文件为空文件，请重新上传'})
         sql='select column_name,data_type from information_schema.columns where table_name={} '.format(DB_TABLE.replace('`',"'"))
+        # 获取表的字段名及类型
         df=pd.read_sql_query(sql,ENGINE)
-        # 筛选条件字典
         print("获取表的字段及其数据类型：")
         print(df)
 
@@ -95,11 +99,11 @@ def index(request):
             '求中位数':'median'
         }
         context = {
-            'mselect_dict':mselect_dict,
-            'mselect_dict_value':mselect_dict_value,
-            'message': '上传成功',
-            'aggfunc_select':aggfunc_select,
-            'metadata':metadata
+            'mselect_dict':mselect_dict, #index,column
+            'mselect_dict_value':mselect_dict_value, #value
+            'message': uploadfilename+'已上传',
+            'aggfunc_select':aggfunc_select, #运算函数
+            'metadata':metadata #元数据信息或者提示空文件
         }
         return render(request,  'chpa_data/display.html',context)      #返回客户端信息
     else:
@@ -150,6 +154,8 @@ def get_df(form_dict, is_pivoted=True):
 # 4.返回Json格式的结果
 # 注：前三步交给get_df函数做了
 def query(request):
+    # six库主要是为了兼容python2和python3
+    # 调用Python 2中的dictionary.iterlists() 或Python 3中的dictionary.lists()
     form_dict = dict(six.iterlists(request.GET))
     print("前端表单转换为字典：")
     print(form_dict)
@@ -241,17 +247,17 @@ def prepare_chart(df,  # 输入经过pivoted方法透视过的df，不是原始d
 # 导出数据函数
 def export(request, type):
     form_dict = dict(six.iterlists(request.GET))
-
     if type == 'pivoted':
         df = get_df(form_dict)  # 透视后的数据
+        sheet_name='透视数据'
     elif type == 'raw':
         df = get_df(form_dict, is_pivoted=False)  # 原始数
-
+        sheet_name='原始数据'
     excel_file = IO()
 
     xlwriter = pd.ExcelWriter(excel_file)
 
-    df.to_excel(xlwriter, 'data', index=True)
+    df.to_excel(xlwriter, sheet_name=sheet_name, index=True)
 
     xlwriter.save()
     xlwriter.close()
@@ -276,19 +282,23 @@ class CsvToMysql(object):
 
     # 读取csv文件
     def read_csv(self,filename):
+        # 判断是否为空文件
+        size = os.path.getsize(filename)
+        if size == 0:
+            return 'null'
         # csv文件中的字段可能会有空，在读取的时候会变成nan，nan到了mysql中是没有办法处理的就会报错，
         # 所以需要加上这个keep_default_na=False，设为false后就会保留原空字符，就不会变成nan了
         df = pd.read_csv(filename, keep_default_na=False, encoding='utf-8')
         table_name = '`'+os.path.split(filename)[-1].split('.')[0] + '`'
-        # print("下列语句测试构造出来的表名是否正确")
-        # print(os.path.split(filename))
-        # print(os.path.split(filename)[-1])
-        # print(os.path.split(filename)[-1].split('.'))
-        # print(os.path.split(filename)[-1].split('.')[0])
+        print("下列语句测试构造出来的表名是否正确")
+        print(os.path.split(filename))
+        print(os.path.split(filename)[-1])
+        print(os.path.split(filename)[-1].split('.'))
+        print(os.path.split(filename)[-1].split('.')[0])
         self.csv2mysql(db_name=self.dbname,table_name=table_name, df=df )
         buffer = io.StringIO()
         df.info(buf=buffer,memory_usage='deep')
-        s =buffer.getvalue()
+        s =buffer.getvalue()#获取到数据的元数据
         ss="您导入的数据的字段信息如下：\n"+s[s.rfind('Range'):]
         return ss
     # pandas的数据类型和MySQL是不通用的，需要进行类型转换。字段名可能含有非法字符，需要反引号。
@@ -389,8 +399,8 @@ def init_html_form(df):
     mselect_dict_value={}
     for key, value in D_screen_condition2VALUE.items():
         #D_MULTI_SELECT
-        #mselect_dict的key为D_screen_condition的key
-        # mselect_dict的value为字典，具有select和options两个字段
+        #mselect_dict_value的key为D_screen_condition2VALUE的key
+        # mselect_dict_value的value为字典，具有select和options两个字段
         mselect_dict_value[key] = {}
 
         # value的select字段表示选择了数据库中的哪个属性

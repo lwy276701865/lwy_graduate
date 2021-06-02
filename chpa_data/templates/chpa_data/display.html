@@ -4,7 +4,7 @@
     <!-- 数据处理时的loading遮罩 -->
     <div class="ui active dimmer" id="dimmer">
         <pre>
-        <div class="ui text myfont_size" style="color: #FFFFFF">{{ metadata }}</div>
+        <div class="ui text myfont_size" style="color: #FFFAFA">{{ metadata }}</div>
         </pre>
     </div>
 
@@ -33,21 +33,10 @@
 
     {#    第二个tab，原数据表格#}
     <div class="ui tab segment" data-tab="bubble_performance">
-        {#                原数据pyecharts透视图#}
-        <h3 class="ui header">
-            <div class="content">
-                原数据展示图
-            </div>
-        </h3>
-        <div class="ui divider"></div>
-        <div class="ui container">
-            <div id="origin_data_chart" style="width:1000px; height:600px;"></div>
-        </div>
-
         {#        原数据表格#}
         <h3 class="ui header">
             <div class="content">
-                原数据展示
+                原数据报表
             </div>
         </h3>
         <div class="ui divider"></div>
@@ -58,25 +47,25 @@
             复制到剪贴板
         </div>
         <div class="ui hidden divider"></div>
-        <div class="ui container" id='initdata_result_table' style="width: 100%; overflow-x: scroll; overflow-y: hidden;">
+        <div class="ui container table_font" id='initdata_result_table' style="width: 100%; overflow-x: scroll; overflow-y: hidden;">
             <!-- Django渲染html代码时需要加入|safe，保证html不会被自动转义 -->
             {{ initdata_table|safe }}
+        </div>
+
+        {#                原数据pyecharts透视图#}
+        <h3 class="ui header">
+            <div class="content">
+                原数据展示图
+            </div>
+        </h3>
+        <div class="ui divider"></div>
+        <div class="ui container">
+            <div id="origin_data_chart" style="width:1000px; height:600px;"></div>
         </div>
     </div>
 
     {#    第三个tab，放了透视柱状图和透视表格。就是数据透视表和它的chart形式#}
     <div class="ui tab segment active" data-tab="total">
-        {#                pyecharts透视图表#}
-        <h3 class="ui header">
-            <div class="content">
-                数据透视图
-            </div>
-        </h3>
-        <div class="ui divider"></div>
-        <div class="ui container">
-            <div id="pivot_chart" style="width:1000px; height:600px;"></div>
-        </div>
-
         {#        透视表格#}
         <h3 class="ui header">
             <div class="content">
@@ -91,9 +80,20 @@
             复制到剪贴板
         </div>
         <div class="ui hidden divider"></div>
-        <div class="ui container" id='result_table' style="width: 100%; overflow-x: scroll; overflow-y: hidden;">
+        <div class="ui container table_font" id='result_table' style="width: 100%; overflow-x: scroll; overflow-y: hidden;">
             <!-- Django渲染html代码时需要加入|safe，保证html不会被自动转义 -->
             {{ ptable|safe }}
+        </div>
+
+        {#                pyecharts透视图表#}
+        <h3 class="ui header">
+            <div class="content">
+                数据透视
+            </div>
+        </h3>
+        <div class="ui divider"></div>
+        <div class="ui container">
+            <div id="pivot_chart" style="width:1000px; height:600px;"></div>
         </div>
     </div>
 
@@ -170,8 +170,19 @@
     <style>
         .myfont_size{
             font-size: 30px;
-            font-family: "Bitstream Vera Sans Mono", Monaco, "Courier New", Courier, monospace;
-            font-style: italic;
+            font-family: SimSun,"Times New Roman", Times, serif;
+            {#font-style: italic;#}
         }
+        .table_font{
+            font-size:medium;
+            font-family: SimSun,"Times New Roman", Times, serif;
+        }
+        {#initdata_result_table.dataTables_wrapper {#}
+        {#    position: relative;#}
+        {#    clear: both;#}
+        {#    zoom: 1;#}
+        {#    overflow-x: auto;#}
+        {# }#}
+
     </style>
 {% endblock %}

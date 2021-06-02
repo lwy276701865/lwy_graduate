@@ -137,12 +137,19 @@ def get_df(form_dict, is_pivoted=True):
         value=delesig(value_selected)
         global aggfunc
         aggfunc=delesig(aggfunc_selected)
+        # 如果df里面没有数据，那么就不能使用透视函数
+        if df.empty:
+            #返回一个空的DataFrame
+            return pd.DataFrame()
         pivoted = pd.pivot_table(df,
                                  values=value,
                                  index=index,
                                  columns=column,
                                  aggfunc=aggfunc,
                                  fill_value=0)
+        # 如果透视出来的dataframe为空，那么也返回一个空的dataframe
+        if pivoted.empty:
+            return pd.DataFrame()
         return pivoted
     else:
         return originData_df
@@ -166,17 +173,15 @@ def query(request):
 
     # table = ptable(pivoted)
     # 透视表格
-    table = pivoted.to_html(#formatters=build_formatters_by_col(pivoted),  # 逐列调整表格内数字格式
-        classes='ui selectable celled table',  # 指定表格css class为Semantic UI主题
+    table = pivoted.to_html(formatters=build_formatters_by_col(pivoted),  # 逐列调整表格内数字格式
+        classes='ui selectable striped nowrap celled table',  # 指定表格css class为Semantic UI主题
         table_id='ptable'  # 指定表格id
     )
     # 原数据表格
-    inittable = df.to_html(#formatters=build_formatters_by_col(pivoted),  # 逐列调整表格内数字格式
-        classes='ui selectable celled table',  # 指定表格css class为Semantic UI主题
+    inittable = df.to_html(#formatters=build_formatters_by_col(df),  # 逐列调整表格内数字格式
+        classes='ui selectable striped nowrap celled table ',  # 指定表格css class为Semantic UI主题
         table_id='initdata_table'  # 指定表格id
     )
-
-
     #describe和valuecounts函数转为图表
     info_chart=json.loads(prepare_chart(df, 'get_info_chart', index,column,aggfunc,value))
     # 原数据图
@@ -192,7 +197,13 @@ def query(request):
     }
 
     return HttpResponse(json.dumps(context, ensure_ascii=False), content_type="application/json charset=utf-8") # 返回结果必须是json格式
-
+def build_formatters_by_col(df):
+    # 整数位添加千位分隔符，保留两位小数
+    format_data=lambda x: '{:,.0f}'.format(x)
+    d = {}
+    for column in df.columns:
+        d[column]=format_data
+    return d
 # 下面是一个获得各个字段option_list的简单方法,在页面初始化时从后端提取所有字段的不重复值作为选项传入前端。
 def get_distinct_list(column, db_table):
     sql = "Select DISTINCT " + column + " From " + db_table
@@ -205,6 +216,7 @@ def sqlparse(context):
 
     # 下面循环处理多选部分（即数据筛选部分）
     for k, v in context.items():
+        # CSRF（Cross-site request forgery），中文名称：跨站请求伪造。CSRF攻击：攻击者盗用了你的身份，以你的名义发送恶意请求。
         if k not in ['csrfmiddlewaretoken', 'DIMENSION_select', 'VALUE_select', 'INDEX_select','AGGFUNC_select']:
             if k[-2:] == '[]':
                 field_name = k[:-9]  # 如果键以[]结尾，删除_select[]取原字段名
@@ -235,10 +247,10 @@ def prepare_chart(df,  # 输入经过pivoted方法透视过的df，不是原始d
     if chart_type=='get_info_chart':#渲染df.describe的出来的表格
         chart=creat_info_chart(df,index,column)
         return chart.dump_options()  # 用json格式返回Pyecharts图表对象的全局设置
-    elif chart_type=='get_pivot_chart':
+    elif chart_type=='get_pivot_chart':#透视图表
         chart=creat_pivot_chart(df,index,column,agg,value)
         return chart.dump_options()
-    elif chart_type=='creat_origindata_chart':
+    elif chart_type=='creat_origindata_chart':#原数据图表
         chart=creat_origindata_chart(df)
         return chart.dump_options()
     else:
@@ -249,24 +261,25 @@ def export(request, type):
     form_dict = dict(six.iterlists(request.GET))
     if type == 'pivoted':
         df = get_df(form_dict)  # 透视后的数据
-        sheet_name='透视数据'
+        sheet_name=aggfunc+'('+value+')'
     elif type == 'raw':
         df = get_df(form_dict, is_pivoted=False)  # 原始数
         sheet_name='原始数据'
     excel_file = IO()
-
     xlwriter = pd.ExcelWriter(excel_file)
-
-    df.to_excel(xlwriter, sheet_name=sheet_name, index=True)
+    df.to_excel(xlwriter, sheet_name=sheet_name)
 
     xlwriter.save()
     xlwriter.close()
 
+    #重新设置起始位置，在这里等同于excel_file.close（）
     excel_file.seek(0)
 
     # 设置浏览器mime类型
+    # MIME (Multipurpose Internet Mail Extensions) 是描述消息内容类型的因特网标准。
+    # MIME 消息能包含文本、图像、音频、视频以及其他应用程序专用的数据。
     response = HttpResponse(excel_file.read(),
-                            content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
+                            content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')#即为xlsx类型
 
     # 设置文件名
     now = datetime.datetime.now().strftime("%Y%m%d%H%M%S")  # 当前精确时间不会重复，适合用来命名默认导出文件
@@ -289,12 +302,14 @@ class CsvToMysql(object):
         # csv文件中的字段可能会有空，在读取的时候会变成nan，nan到了mysql中是没有办法处理的就会报错，
         # 所以需要加上这个keep_default_na=False，设为false后就会保留原空字符，就不会变成nan了
         df = pd.read_csv(filename, keep_default_na=False, encoding='utf-8')
+        if 'Unnamed: 0' in df.columns:
+            df.drop('Unnamed: 0',axis=1,inplace=True) #改变原始数据
         table_name = '`'+os.path.split(filename)[-1].split('.')[0] + '`'
-        print("下列语句测试构造出来的表名是否正确")
-        print(os.path.split(filename))
-        print(os.path.split(filename)[-1])
-        print(os.path.split(filename)[-1].split('.'))
-        print(os.path.split(filename)[-1].split('.')[0])
+        # print("下列语句测试构造出来的表名是否正确")
+        # print(os.path.split(filename))
+        # print(os.path.split(filename)[-1])
+        # print(os.path.split(filename)[-1].split('.'))
+        # print(os.path.split(filename)[-1].split('.')[0])
         self.csv2mysql(db_name=self.dbname,table_name=table_name, df=df )
         buffer = io.StringIO()
         df.info(buf=buffer,memory_usage='deep')

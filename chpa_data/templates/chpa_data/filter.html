@@ -1,5 +1,6 @@
 <div class="ui container" >
     <div class="ui form">
+        {#        使用label元素与file控件关联#}
         <label id="mylabel" for="upload" class="ui fluid huge teal label">
             <i class="file icon"></i>
             点击选择文件
@@ -7,6 +8,8 @@
 
         <form style="margin-top: 15px" action="" method="post" enctype="multipart/form-data">
             <!-- 在Django所有的 POST 表单元素时，需要加上下方的csrf_token tag，主要是安全方面的机制，本例后续使用AJAX方法，这里的POST class和token都不生效 -->
+{#           如果加入了下字段，那么django的CsrfMiddleware中间件会自动为此站点生成 #}
+{#            <input  name="csrfmiddlewaretoken" value="随机字符串"/> #}
             {% csrf_token %}
             {#            导入文件区域#}
             <input type="file" id="upload" name="upload" accept="text/csv" style="position:absolute;clip:rect(0 0 0 0);"/>
@@ -128,7 +131,7 @@
         var dimmer = $("#dimmer");
         dimmer.attr('class', 'ui active dimmer'); // 点击筛选按钮后dimmer变成active
         dimmer.children('pre').remove(); // 删除初始化文字
-        dimmer.append('<div class="ui text loader">数据加载中……</div>'); // 增加loading效果和文字
+        dimmer.append('<div class="ui text loader">数据分析中……</div>'); // 增加loading效果和文字
         var info_chart = echarts.init(document.getElementById('info_chart'), 'white', {renderer: 'canvas'});
         info_chart.showLoading({
             text: '正在加载数据'
@@ -193,7 +196,7 @@
         table.DataTable(
             {
                 {#order: [[1, "desc"]], // 初始以第2列（注意第一列索引为0）由高到低排序#}
-                pageLength: 25, // 前端分页，初始每页显示25条记录
+                pageLength: 10, // 前端分页，初始每页显示10条记录
                 autoWidth: false, // 不自动调整表格宽度
                 oLanguage: { // UI Label本地化
                     "sLengthMenu": "显示 _MENU_ 项结果",
@@ -201,7 +204,7 @@
                     "sZeroRecords": "没有匹配结果",
                     "sInfo": "显示第 _START_ 至 _END_ 条结果，共 _TOTAL_ 条",
                     "sInfoEmpty": "没有数据",
-                    "sInfoFiltered": "(获取 _MAX_ 条客户档案)",
+                    "sInfoFiltered": "(过滤 _MAX_ 条输入)",
                     "sInfoPostFix": "",
                     "sSearch": "搜索:",
                     "sUrl": "",
@@ -215,6 +218,23 @@
                         "sLast": "末页"
                     },
                 },
+                columnDefs:[
+                    {
+                        "targets": 0, // 指定第1列EI
+                        "createdCell": function (td, cellData, rowData, row, col){
+                                $(td).css('color', 'black')
+                        }
+                    },
+                    {
+                        "targets": '_all', // 指定全部列
+                        "createdCell": function (td, cellData, rowData, row, col){
+
+                            if(cellData==0){
+                                $(td).css('color', 'orange')
+                            }
+                        }
+                    }
+                ]
             }
         );
     }

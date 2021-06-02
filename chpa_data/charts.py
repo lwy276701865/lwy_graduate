@@ -45,6 +45,11 @@ def creat_info_chart(df,index,column):
             xaxis_opts=opts.AxisOpts(name=column),
         )
     )
+    # count:统计个数；unique：表示有多少种不同的值；top：数据中出现次数最高的值；freq：出现次数最高的那个值（top）的出现频率
+
+    # 百分位数：第p百分位数是这样一个值，它使得至少有p%的数据项小于或等于这个值，且至少有(100-p)%的数据项大于或等于
+    # 这个值。以身高为例，身高分布的第五百分位表示有5%的人的身高小于此测量值，95%的身高大于此测量值。
+
     x_data = list(df.describe(include='all').index)
     yaxis=list(df.describe(include='all').columns)
     line=Line()
@@ -83,7 +88,8 @@ def creat_origindata_chart(df):
         datazoom_opts=[opts.DataZoomOpts(), opts.DataZoomOpts(type_="inside")],
         tooltip_opts=opts.TooltipOpts(trigger="axis", axis_pointer_type="cross",position='bottom'),
         toolbox_opts=opts.ToolboxOpts(orient='vertical',pos_left='90%',pos_top='10%'),
-        legend_opts=opts.LegendOpts(type_='scroll')
+        legend_opts=opts.LegendOpts(type_='scroll'),
+        xaxis_opts=opts.AxisOpts(name='原数据索引值')
     )
     return chart
 # 创建透视表的图
@@ -112,6 +118,7 @@ def creat_pivot_chart(pivot,index,column,agg,value):
             visualmap_opts=opts.VisualMapOpts(max_=visualmap_max,range_text=range_text),
             title_opts=opts.TitleOpts(title="数据透视三维图"),
             toolbox_opts=opts.ToolboxOpts(),
+            datazoom_opts=opts.DataZoomOpts(type_="inside")
         )
     )
     return c

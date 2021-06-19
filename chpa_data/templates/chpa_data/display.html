@@ -119,12 +119,14 @@
         function selectElementContents(el) {
             var body = document.body, range, sel;
             if (document.createRange && window.getSelection) {
+                {#返回一个 Range 对象。#}
                 range = document.createRange();
 
                 /* 窗口的selection对象，表示用户选择的文本 */
                 sel = window.getSelection();
                 sel.removeAllRanges();// 将已经包含的已选择的对象清除掉
                 try {
+                    {#Range.selectNodeContents() 方法用于设置 Range，使其包含一个 Node 的内容。#}
                     range.selectNodeContents(el);
                     sel.addRange(range);// 将要复制的区域的range对象添加到selection对象中
                 } catch (e) {
@@ -169,7 +171,7 @@
     </script>
     <style>
         .myfont_size{
-            font-size: 30px;
+            font-size: 15px;
             font-family: SimSun,"Times New Roman", Times, serif;
             {#font-style: italic;#}
         }
